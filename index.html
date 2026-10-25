@@ -3,443 +3,856 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Seeing Roundnet">
 <meta name="theme-color" content="#111111">
 <title>Seeing Roundnet – PoC</title>
 <style>
-  :root { --bg:#111; --panel:#1c1c1c; --fg:#f2f2f2; --muted:#9a9a9a; --btn:#2b2b2b; --accent:#ff3b30; --ar:1.7778; }
+  :root { --bg:#111; --panel:#1c1c1c; --fg:#f2f2f2; --muted:#9a9a9a; --btn:#2b2b2b; --accent:#ff3b30; --ok:#30d158; --warn:#ffd60a; --ar:1.7778; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system, system-ui, Segoe UI, Roboto, sans-serif; }
-  body { padding-bottom:env(safe-area-inset-bottom); }
-  header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; }
-  header h1 { font-size:17px; margin:0; letter-spacing:.3px; }
-  header span { font-size:12px; color:var(--muted); }
-  #stage { position:relative; margin:0 auto; background:#000; aspect-ratio:var(--ar);
-           width:min(100%, calc(62vh * var(--ar))); overflow:hidden; }
+  body { padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 16px; }
+  header h1 { font-size:16px; margin:0; }
+  header .sub { font-size:11px; color:var(--muted); }
+  header button { min-height:34px; padding:6px 10px; font-size:13px; }
+  #main { display:flex; flex-direction:column; }
+  #stageWrap { display:flex; justify-content:center; background:#000; }
+  #stage { position:relative; background:#000; aspect-ratio:var(--ar); width:min(100%, calc(56dvh * var(--ar))); overflow:hidden; }
   #stage video, #stage canvas { position:absolute; inset:0; width:100%; height:100%; }
   #stage video { object-fit:fill; }
   #view { touch-action:none; }
-  #placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-                 color:var(--muted); font-size:14px; text-align:center; padding:16px; pointer-events:none; }
-  #recBadge { position:absolute; top:8px; left:8px; background:var(--accent); color:#fff; font-size:13px;
-              font-weight:700; padding:3px 8px; border-radius:6px; display:none; }
-  .panel { padding:10px 16px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  button, .filebtn { background:var(--btn); color:var(--fg); border:0; border-radius:10px; padding:10px 14px;
-                     font-size:15px; font-weight:600; cursor:pointer; min-height:44px; }
+  #placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; text-align:center; padding:16px; pointer-events:none; }
+  #recBadge { position:absolute; top:8px; left:8px; background:var(--accent); color:#fff; font-size:13px; font-weight:700; padding:3px 8px; border-radius:6px; display:none; pointer-events:none; font-variant-numeric:tabular-nums; }
+  #recBadge.paused { background:var(--warn); color:#111; }
+  .panel { padding:8px 16px 12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button, .filebtn { background:var(--btn); color:var(--fg); border:0; border-radius:10px; padding:10px 13px; font-size:15px; font-weight:600; cursor:pointer; min-height:44px; font-family:inherit; }
   button:disabled { opacity:.35; }
   button.active { background:#fff; color:#111; }
   .filebtn input { display:none; }
-  #rec { background:var(--accent); color:#fff; flex:1 1 100%; font-size:17px; }
-  #rec.recording { background:#fff; color:var(--accent); }
-  .row { display:flex; gap:8px; align-items:center; width:100%; }
-  #scrub { flex:1; accent-color:var(--accent); }
-  #time { font-variant-numeric:tabular-nums; font-size:13px; color:var(--muted); min-width:96px; text-align:right; }
+  .filebtn.disabled { opacity:.35; pointer-events:none; }
+  .row { display:flex; gap:8px; align-items:center; width:100%; flex-wrap:wrap; }
+  #scrub { flex:1; min-width:120px; accent-color:var(--accent); }
+  #time { font-variant-numeric:tabular-nums; font-size:13px; color:var(--muted); }
   .swatch { width:44px; padding:0; }
   .swatch i { display:inline-block; width:18px; height:18px; border-radius:50%; vertical-align:middle; }
   .label { font-size:12px; color:var(--muted); width:100%; margin-top:2px; }
-  #info { font-size:12px; color:var(--muted); padding:0 16px 8px; }
-  #banner, #result { margin:10px 16px; background:var(--panel); border-radius:12px; padding:12px; display:none; }
-  #result video { width:100%; border-radius:8px; background:#000; margin-bottom:8px; }
-  #result p, #banner p { margin:0 0 8px; font-size:14px; }
+  #rec { background:var(--accent); color:#fff; flex:1 1 60%; font-size:17px; }
+  #rec.recording { background:#fff; color:var(--accent); }
+  #recPause { flex:1 1 30%; }
+  #info { font-size:11px; color:var(--muted); padding:0 16px 8px; }
+  .card { margin:8px 16px; background:var(--panel); border-radius:12px; padding:12px; display:none; }
+  .card p { margin:0 0 8px; font-size:14px; }
+  #result video { width:100%; max-height:50dvh; border-radius:8px; background:#000; margin-bottom:8px; }
+  progress { width:100%; height:8px; margin-bottom:8px; accent-color:var(--ok); }
+  .warn { color:var(--warn); }
+  #debug { margin:8px 16px 16px; max-height:30dvh; overflow:auto; background:#000; color:#7CFC9A; font:11px/1.35 ui-monospace, Menlo, monospace; padding:6px 8px; white-space:pre-wrap; display:none; border:1px solid #333; border-radius:8px; }
+  #debug .e { color:#ff6b6b; } #debug .w { color:#ffd60a; }
+  @media (orientation:landscape) and (max-height:600px) {
+    #main { flex-direction:row; height:calc(100dvh - 50px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+    #stageWrap { flex:1; min-width:0; align-items:center; }
+    #stage { width:min(100%, calc((100dvh - 60px) * var(--ar))); }
+    #side { width:340px; overflow-y:auto; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>Seeing Roundnet</h1>
-  <span>Proof of concept</span>
+  <div>
+    <h1>Seeing Roundnet</h1>
+    <div class="sub" id="ver">Proof of concept v2</div>
+  </div>
+  <button id="diag">Send diagnostics</button>
 </header>
 
-<div id="banner">
-  <p>An unsaved recording from a previous session was found.</p>
+<div id="banner" class="card">
+  <p id="bannerText"></p>
   <button id="recover">Recover it</button>
   <button id="dismiss">Discard</button>
 </div>
 
-<div id="stage">
-  <video id="video" playsinline muted preload="auto"></video>
-  <canvas id="view"></canvas>
-  <div id="placeholder">Load a video to start</div>
-  <div id="recBadge">● REC 00:00</div>
-</div>
-
-<div class="panel">
-  <div class="row">
-    <input id="scrub" type="range" min="0" max="0" step="0.001" value="0" disabled>
-    <span id="time">0.00 / 0.00</span>
+<div id="main">
+  <div id="stageWrap">
+    <div id="stage">
+      <video id="video" playsinline muted preload="auto"></video>
+      <canvas id="view"></canvas>
+      <div id="placeholder">Load a video to start</div>
+      <div id="recBadge">● REC 00:00</div>
+    </div>
   </div>
 
-  <label class="filebtn" id="loadBtn">Load video<input id="file" type="file" accept="video/*"></label>
-  <button id="back" disabled aria-label="Previous frame">◀︎ frame</button>
-  <button id="play" disabled>Play</button>
-  <button id="fwd" disabled aria-label="Next frame">frame ▶︎</button>
+  <div id="side">
+    <div class="panel">
+      <div class="row">
+        <input id="scrub" type="range" min="0" max="0" step="0.001" value="0" disabled>
+        <span id="time">00:00.000 / 00:00.000</span>
+      </div>
 
-  <div class="label">Speed</div>
-  <button class="speed" data-v="0.25" disabled>0.25×</button>
-  <button class="speed" data-v="0.5" disabled>0.5×</button>
-  <button class="speed active" data-v="1" disabled>1×</button>
+      <label class="filebtn" id="loadBtn">Load video<input id="file" type="file" accept="video/*"></label>
+      <button id="back" disabled aria-label="Previous frame">◀︎ frame</button>
+      <button id="play" disabled>Play</button>
+      <button id="fwd" disabled aria-label="Next frame">frame ▶︎</button>
 
-  <div class="label">Drawing</div>
-  <button id="pen" class="active" disabled>Pen on</button>
-  <button class="swatch active" data-c="#ff3b30" disabled aria-label="Red"><i style="background:#ff3b30"></i></button>
-  <button class="swatch" data-c="#ffd60a" disabled aria-label="Yellow"><i style="background:#ffd60a"></i></button>
-  <button class="swatch" data-c="#ffffff" disabled aria-label="White"><i style="background:#fff"></i></button>
-  <button id="undo" disabled>Undo</button>
-  <button id="clear" disabled>Clear</button>
+      <div class="label">Speed</div>
+      <button class="speed" data-v="0.1" disabled>0.1×</button>
+      <button class="speed" data-v="0.25" disabled>0.25×</button>
+      <button class="speed" data-v="0.5" disabled>0.5×</button>
+      <button class="speed active" data-v="1" disabled>1×</button>
 
-  <button id="rec" disabled>● Start recording</button>
+      <div class="label">Drawing</div>
+      <button class="tool active" data-t="pen" disabled>Pen</button>
+      <button class="tool" data-t="arrow" disabled>Arrow</button>
+      <button class="swatch active" data-c="#ff3b30" disabled aria-label="Red"><i style="background:#ff3b30"></i></button>
+      <button class="swatch" data-c="#ffd60a" disabled aria-label="Yellow"><i style="background:#ffd60a"></i></button>
+      <button class="swatch" data-c="#5ac8fa" disabled aria-label="Blue"><i style="background:#5ac8fa"></i></button>
+      <button class="swatch" data-c="#ffffff" disabled aria-label="White"><i style="background:#fff"></i></button>
+      <button id="undo" disabled>Undo</button>
+      <button id="clear" disabled>Clear</button>
+
+      <div class="label">Recording</div>
+      <button id="rec" disabled>● Start recording</button>
+      <button id="recPause" disabled>Pause rec</button>
+    </div>
+
+    <div id="info"></div>
+
+    <div id="result" class="card">
+      <p id="resultText"></p>
+      <progress id="progress" max="1" value="0"></progress>
+      <video id="preview" playsinline controls></video>
+      <button id="save">Save / Share video</button>
+      <button id="saveRaw" style="display:none">Share raw file</button>
+      <button id="discard">Delete recording</button>
+    </div>
+  </div>
 </div>
 
-<div id="info"></div>
-
-<div id="result">
-  <p id="resultText"></p>
-  <video id="preview" playsinline controls></video>
-  <button id="save">Save / Share video</button>
-  <button id="discard">Discard</button>
-</div>
+<div id="debug"></div>
 
 <script>
 (() => {
+  'use strict';
+  const VERSION = 'PoC v2.0';
   const $ = id => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const DEBUG = params.has('debug');
+  const COMPAT = params.has('compat');               // behave like iOS 17 (no audio WebCodecs)
+  const RENDER_FPS = Math.min(60, Math.max(15, +params.get('fps') || 30));
+  const MAX_SIDE = Math.min(3840, Math.max(640, +params.get('max') || 1920));
+  const VIDEO_BPS = Math.max(1, +params.get('mbps') || 4) * 1e6;
+  const MB = 1048576;
+
+  $('ver').textContent = `Proof of concept v2${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
+
+  // ---------------------------------------------------------------- logging
+  const logLines = [];
+  const t0 = performance.now();
+  function log(msg, level = 'i') {
+    const line = `[${((performance.now() - t0) / 1000).toFixed(1).padStart(7)}s] ${level === 'e' ? 'ERROR ' : level === 'w' ? 'WARN ' : ''}${msg}`;
+    logLines.push(line);
+    if (logLines.length > 2000) logLines.splice(0, logLines.length - 2000);
+    (level === 'e' ? console.error : level === 'w' ? console.warn : console.log)(line);
+    if (DEBUG) {
+      const d = document.createElement('div');
+      if (level !== 'i') d.className = level;
+      d.textContent = line;
+      $('debug').appendChild(d);
+      while ($('debug').childNodes.length > 400) $('debug').removeChild($('debug').firstChild);
+      $('debug').scrollTop = $('debug').scrollHeight;
+    }
+  }
+  if (DEBUG) $('debug').style.display = 'block';
+  window.addEventListener('error', e => log(`Uncaught: ${e.message} @${e.filename}:${e.lineno}`, 'e'));
+  window.addEventListener('unhandledrejection', e => log(`Unhandled promise: ${e.reason && (e.reason.stack || e.reason.message) || e.reason}`, 'e'));
+  const mbs = b => (b / MB).toFixed(1) + ' MB';
+  const errMsg = e => (e && (e.message || e.name)) || String(e);
+
+  if (COMPAT) {
+    // iOS 17 Safari has no audio WebCodecs: hide them so newer phones behave like Scott's.
+    for (const k of ['AudioEncoder', 'AudioDecoder', 'AudioData']) {
+      try { Object.defineProperty(window, k, { value: undefined, configurable: true, writable: true }); } catch (e) { log('compat: could not hide ' + k, 'w'); }
+    }
+    log('Compat mode: audio WebCodecs hidden');
+  }
+
+  // ---------------------------------------------------------------- storage (IndexedDB)
+  const DB_NAME = 'seeing-roundnet-v2';
+  let dbPromise = null;
+  function openDB() {
+    if (!dbPromise) dbPromise = new Promise((res, rej) => {
+      const r = indexedDB.open(DB_NAME, 1);
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        d.createObjectStore('chunks', { keyPath: 'i' });   // raw recording, 1 record per second
+        d.createObjectStore('out', { keyPath: 'i' });      // converted MP4, 4 MB parts
+        d.createObjectStore('meta', { keyPath: 'k' });     // session state, action log
+      };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    return dbPromise;
+  }
+  async function tx(store, mode, fn) {
+    const d = await openDB();
+    return new Promise((res, rej) => {
+      const t = d.transaction(store, mode);
+      const req = fn(t.objectStore(store));
+      t.oncomplete = () => res(req ? req.result : undefined);
+      t.onerror = () => rej(t.error || new Error('IndexedDB error'));
+      t.onabort = () => rej(t.error || new Error('IndexedDB transaction aborted'));
+    });
+  }
+  const putRec = (s, v) => tx(s, 'readwrite', o => o.put(v));
+  const getAll = s => tx(s, 'readonly', o => o.getAll());
+  const clearStore = s => tx(s, 'readwrite', o => o.clear());
+  const getMeta = k => tx('meta', 'readonly', o => o.get(k));
+  const setMeta = (k, v) => putRec('meta', Object.assign({ k }, v));
+
+  let blobMode = 'blob';  // store Blobs (disk-backed); fall back to ArrayBuffers if refused
+  async function putBlobRecord(store, rec) {
+    if (blobMode === 'blob') {
+      try { await putRec(store, rec); return; }
+      catch (e) { log(`IndexedDB refused a Blob (${errMsg(e)}), switching to ArrayBuffer mode`, 'w'); blobMode = 'buffer'; }
+    }
+    const copy = Object.assign({}, rec, { blob: await rec.blob.arrayBuffer() });
+    await putRec(store, copy);
+  }
+  const asBlob = (b, type) => b instanceof Blob ? b : new Blob([b], type ? { type } : undefined);
+
+  async function storageInfo() {
+    try {
+      const e = await navigator.storage.estimate();
+      return { usage: e.usage || 0, quota: e.quota || 0, text: `${mbs(e.usage || 0)} used / ${mbs(e.quota || 0)} available to the app` };
+    } catch (e) { return { usage: 0, quota: 0, text: 'storage estimate unavailable' }; }
+  }
+
+  // ---------------------------------------------------------------- canvas + state
   const video = $('video'), view = $('view'), ctx = view.getContext('2d');
   const ink = document.createElement('canvas'), ictx = ink.getContext('2d');
-  const MAX_SIDE = 1280;          // cap resolution to keep memory low on phones
-  const FPS = 30;
+  let strokes = [], current = null, tool = 'pen', color = '#ff3b30';
+  let fps = 30, fpsSamples = [];
+  let recorder = null, micStream = null, wakeLock = null;
+  let recState = 'idle';          // idle | recording | paused | finishing
+  let recStart = 0, recPausedAt = 0, recPausedTotal = 0, recTimer = null, metaTimer = null;
+  let chunkCount = 0, recBytes = 0, writeChain = Promise.resolve(), writeErrors = 0, stopRequested = false;
+  let actions = [];
+  let resultFile = null, resultUrl = null, rawBlob = null;
+  let sessionId = null;
 
-  let strokes = [], current = null, penOn = true, color = '#ff3b30';
-  let recorder = null, chunks = [], micStream = null, recStart = 0, timer = null;
-  let resultFile = null, resultUrl = null;
+  const recElapsed = () => recState === 'idle' ? 0 :
+    ((recState === 'paused' ? recPausedAt : performance.now()) - recStart - recPausedTotal);
 
-  // ---------- Small IndexedDB store: recording is saved chunk by chunk ----------
-  const db = {
-    _p: null,
-    open() {
-      return this._p || (this._p = new Promise((res, rej) => {
-        const r = indexedDB.open('seeing-roundnet', 1);
-        r.onupgradeneeded = () => r.result.createObjectStore('chunks', { keyPath: 'i' });
-        r.onsuccess = () => res(r.result);
-        r.onerror = () => rej(r.error);
-      }));
-    },
-    async run(mode, fn) {
-      const d = await this.open();
-      return new Promise((res, rej) => {
-        const t = d.transaction('chunks', mode);
-        const req = fn(t.objectStore('chunks'));
-        t.oncomplete = () => res(req ? req.result : undefined);
-        t.onerror = () => rej(t.error);
-      });
-    },
-    put(item) { return this.run('readwrite', s => s.put(item)); },
-    clear() { return this.run('readwrite', s => s.clear()); },
-    all() { return this.run('readonly', s => s.getAll()); }
-  };
-  const safe = p => p.catch(err => console.warn('Storage:', err));
-
-  // ---------- Helpers ----------
-  const fmt = t => (isFinite(t) ? t : 0).toFixed(2);
-  const controls = () => [...document.querySelectorAll('.panel button, #scrub')];
-  function enable(on) { controls().forEach(el => el.disabled = !on); }
-  function setInfo(extra = '') {
-    const type = pickType() || 'browser default';
-    const size = view.width ? `${view.width}×${view.height}` : '–';
-    $('info').textContent = `Export format: ${type} · Resolution: ${size}${extra ? ' · ' + extra : ''}`;
+  function act(type, extra) {
+    if (recState === 'idle' || recState === 'finishing') return;
+    actions.push(Object.assign({ t: Math.round(recElapsed()), type, vt: +video.currentTime.toFixed(3), rate: video.playbackRate }, extra || {}));
   }
+
+  // ---------------------------------------------------------------- helpers
+  const fmtT = s => {
+    if (!isFinite(s) || s < 0) s = 0;
+    const m = Math.floor(s / 60), r = s - m * 60;
+    return `${String(m).padStart(2, '0')}:${r.toFixed(3).padStart(6, '0')}`;
+  };
+  const fmtRec = ms => {
+    const s = Math.floor(ms / 1000);
+    return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  };
   function pickType() {
     if (!window.MediaRecorder) return '';
     const candidates = [
       'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4;codecs=avc1,mp4a',
       'video/mp4',
       'video/webm;codecs=vp9,opus',
       'video/webm;codecs=vp8,opus',
       'video/webm'
     ];
-    return candidates.find(t => MediaRecorder.isTypeSupported(t)) || '';
+    return candidates.find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || '';
+  }
+  function setInfo(extra) {
+    const size = view.width ? `${view.width}×${view.height}` : '–';
+    $('info').textContent = `${VERSION} · format: ${pickType() || 'browser default'} · output: ${size} @${RENDER_FPS}fps · source ≈${fps}fps${extra ? ' · ' + extra : ''}`;
+  }
+  const editControls = () => [...document.querySelectorAll('#side .panel button, #scrub')];
+  function enableEditing(on) {
+    editControls().forEach(el => { if (el.id !== 'recPause') el.disabled = !on; });
+    $('recPause').disabled = !(recState === 'recording' || recState === 'paused');
   }
 
-  // ---------- Load video ----------
+  // ---------------------------------------------------------------- load video
   $('file').addEventListener('change', e => {
     const f = e.target.files[0];
+    e.target.value = '';
     if (!f) return;
+    if (recState !== 'idle') { alert('Stop the recording before loading another video.'); return; }
     if (video.src) URL.revokeObjectURL(video.src);
+    log(`Loading ${f.name || 'video'} · ${mbs(f.size)} · ${f.type || 'unknown type'}`);
+    fpsSamples = []; fps = 30;
     video.src = URL.createObjectURL(f);
     video.load();
-    e.target.value = '';
   });
+  video.addEventListener('error', () => log(`Video element error: ${video.error && video.error.message || video.error && video.error.code}`, 'e'));
 
   video.addEventListener('loadedmetadata', () => {
     let w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) { log('Video has no picture size', 'e'); return; }
     const s = Math.min(1, MAX_SIDE / Math.max(w, h));
-    w = Math.round(w * s / 2) * 2;   // even sizes: required by video encoders
-    h = Math.round(h * s / 2) * 2;
-    view.width = ink.width = w;
-    view.height = ink.height = h;
-    document.documentElement.style.setProperty('--ar', w / h);
+    const ow = Math.round(w * s / 2) * 2, oh = Math.round(h * s / 2) * 2;   // even sizes for H.264
+    view.width = ink.width = ow;
+    view.height = ink.height = oh;
+    document.documentElement.style.setProperty('--ar', ow / oh);
     $('placeholder').style.display = 'none';
     $('scrub').max = video.duration;
     strokes = []; redrawInk();
-    video.currentTime = 0.001;        // forces iOS to decode the first frame
-    enable(true);
+    video.currentTime = 0.001;   // makes iOS decode the first frame
+    enableEditing(true);
+    log(`Video ready: ${w}×${h} (${w >= h ? 'landscape' : 'portrait'}), ${video.duration.toFixed(1)} s → output ${ow}×${oh}`);
     setInfo();
   });
 
-  // ---------- Render loop: video frame + drawings into one canvas ----------
-  function loop() {
-    if (view.width) {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, view.width, view.height);
-      if (video.readyState >= 2) ctx.drawImage(video, 0, 0, view.width, view.height);
-      ctx.drawImage(ink, 0, 0);
-      if (document.activeElement !== $('scrub')) $('scrub').value = video.currentTime;
-      $('time').textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
-    }
+  // estimate the source frame rate (for frame-by-frame steps)
+  function trackFrames() {
+    if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) return;
+    let last = null;
+    const cb = (now, meta) => {
+      if (last !== null && !video.paused) {
+        const d = (meta.mediaTime - last) / Math.max(1, (meta.presentedFrames - (cb.lastFrames || 0)) || 1);
+        if (d > 0.002 && d < 0.2) {
+          fpsSamples.push(d);
+          if (fpsSamples.length > 40) fpsSamples.shift();
+          const min = Math.min(...fpsSamples);
+          const est = Math.round(1 / min);
+          const snapped = [24, 25, 30, 48, 50, 60, 120, 240].reduce((a, b) => Math.abs(b - est) < Math.abs(a - est) ? b : a, 30);
+          if (snapped !== fps && fpsSamples.length >= 10) { fps = snapped; log(`Source frame rate ≈ ${fps} fps`); setInfo(); }
+        }
+      }
+      last = meta.mediaTime; cb.lastFrames = meta.presentedFrames;
+      video.requestVideoFrameCallback(cb);
+    };
+    video.requestVideoFrameCallback(cb);
+  }
+  trackFrames();
+
+  // ---------------------------------------------------------------- render loop
+  let lastDraw = 0;
+  const frameInterval = 1000 / RENDER_FPS;
+  function loop(now) {
     requestAnimationFrame(loop);
+    if (!view.width) return;
+    if (now - lastDraw < frameInterval - 3) return;
+    lastDraw = now;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, view.width, view.height);
+    if (video.readyState >= 2) ctx.drawImage(video, 0, 0, view.width, view.height);
+    ctx.drawImage(ink, 0, 0);
+    if (document.activeElement !== $('scrub')) $('scrub').value = video.currentTime;
+    $('time').textContent = `${fmtT(video.currentTime)} / ${fmtT(video.duration)}`;
   }
   requestAnimationFrame(loop);
 
-  // ---------- Playback ----------
-  $('play').onclick = () => video.paused ? video.play() : video.pause();
-  video.addEventListener('play', () => $('play').textContent = 'Pause');
-  video.addEventListener('pause', () => $('play').textContent = 'Play');
-  video.addEventListener('ended', () => $('play').textContent = 'Play');
+  // ---------------------------------------------------------------- playback
+  $('play').onclick = () => video.paused ? video.play().catch(e => log('play() failed: ' + errMsg(e), 'w')) : video.pause();
+  video.addEventListener('play', () => { $('play').textContent = 'Pause'; act('play'); });
+  video.addEventListener('pause', () => { $('play').textContent = 'Play'; act('pause'); });
+  video.addEventListener('ended', () => { $('play').textContent = 'Play'; });
 
   function step(dir) {
     video.pause();
-    video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + dir / FPS));
+    video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + dir / fps));
+    act('step', { dir });
   }
   $('back').onclick = () => step(-1);
   $('fwd').onclick = () => step(1);
   $('scrub').addEventListener('input', e => { video.currentTime = +e.target.value; });
+  $('scrub').addEventListener('change', () => act('seek'));
 
   document.querySelectorAll('.speed').forEach(b => b.onclick = () => {
     video.playbackRate = video.defaultPlaybackRate = +b.dataset.v;
     document.querySelectorAll('.speed').forEach(x => x.classList.toggle('active', x === b));
+    act('rate');
   });
 
-  // ---------- Drawing ----------
+  // ---------------------------------------------------------------- drawing
   function pos(e) {
     const r = view.getBoundingClientRect();
-    return [(e.clientX - r.left) * view.width / r.width, (e.clientY - r.top) * view.height / r.height];
+    return [Math.round((e.clientX - r.left) * view.width / r.width), Math.round((e.clientY - r.top) * view.height / r.height)];
   }
-  function style(s) {
-    ictx.strokeStyle = s.color; ictx.lineWidth = s.w; ictx.lineCap = 'round'; ictx.lineJoin = 'round';
-  }
-  function drawStroke(s) {
-    style(s);
-    ictx.beginPath();
-    s.pts.forEach((p, i) => i ? ictx.lineTo(p[0], p[1]) : ictx.moveTo(p[0], p[1]));
-    if (s.pts.length === 1) ictx.lineTo(s.pts[0][0] + 0.1, s.pts[0][1]);
-    ictx.stroke();
+  function drawStroke(s, c) {
+    c.strokeStyle = s.color; c.fillStyle = s.color;
+    c.lineWidth = s.w; c.lineCap = 'round'; c.lineJoin = 'round';
+    const p = s.pts;
+    if (s.tool === 'arrow') {
+      const [a, b] = [p[0], p[p.length - 1]];
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+      const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = s.w * 4.5;
+      c.beginPath();
+      c.moveTo(b[0], b[1]);
+      c.lineTo(b[0] - L * Math.cos(ang - 0.45), b[1] - L * Math.sin(ang - 0.45));
+      c.lineTo(b[0] - L * Math.cos(ang + 0.45), b[1] - L * Math.sin(ang + 0.45));
+      c.closePath(); c.fill();
+      return;
+    }
+    c.beginPath();
+    p.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]));
+    if (p.length === 1) c.lineTo(p[0][0] + 0.1, p[0][1]);
+    c.stroke();
   }
   function redrawInk() {
     ictx.clearRect(0, 0, ink.width, ink.height);
-    strokes.forEach(drawStroke);
+    strokes.forEach(s => drawStroke(s, ictx));
+    if (current) drawStroke(current, ictx);
   }
   view.addEventListener('pointerdown', e => {
-    if (!penOn || !view.width) return;
+    if (!view.width) return;
     e.preventDefault();
-    view.setPointerCapture(e.pointerId);
-    current = { color, w: Math.max(3, view.width / 220), pts: [pos(e)] };
-    strokes.push(current);
-    drawStroke(current);
+    try { view.setPointerCapture(e.pointerId); } catch (err) {}
+    current = { tool, color, w: Math.max(3, Math.round(Math.max(view.width, view.height) / 320)), pts: [pos(e)] };
+    redrawInk();
   });
   view.addEventListener('pointermove', e => {
     if (!current) return;
-    const p = pos(e), q = current.pts[current.pts.length - 1];
+    const p = pos(e);
+    if (current.tool === 'arrow') { current.pts[1] = p; redrawInk(); return; }
+    const q = current.pts[current.pts.length - 1];
     current.pts.push(p);
-    style(current);
+    ictx.strokeStyle = current.color; ictx.lineWidth = current.w; ictx.lineCap = 'round'; ictx.lineJoin = 'round';
     ictx.beginPath(); ictx.moveTo(q[0], q[1]); ictx.lineTo(p[0], p[1]); ictx.stroke();
   });
-  ['pointerup', 'pointercancel'].forEach(t => view.addEventListener(t, () => current = null));
+  function endStroke() {
+    if (!current) return;
+    strokes.push(current);
+    act('stroke', { tool: current.tool, color: current.color, w: current.w, pts: current.pts });
+    current = null;
+    redrawInk();
+  }
+  view.addEventListener('pointerup', endStroke);
+  view.addEventListener('pointercancel', endStroke);
 
-  $('pen').onclick = () => {
-    penOn = !penOn;
-    $('pen').textContent = penOn ? 'Pen on' : 'Pen off';
-    $('pen').classList.toggle('active', penOn);
-  };
+  document.querySelectorAll('.tool').forEach(b => b.onclick = () => {
+    tool = b.dataset.t;
+    document.querySelectorAll('.tool').forEach(x => x.classList.toggle('active', x === b));
+  });
   document.querySelectorAll('.swatch').forEach(b => b.onclick = () => {
     color = b.dataset.c;
     document.querySelectorAll('.swatch').forEach(x => x.classList.toggle('active', x === b));
   });
-  $('undo').onclick = () => { strokes.pop(); redrawInk(); };
-  $('clear').onclick = () => { strokes = []; redrawInk(); };
+  $('undo').onclick = () => { strokes.pop(); redrawInk(); act('undo'); };
+  $('clear').onclick = () => { strokes = []; redrawInk(); act('clear'); };
 
-  // ---------- Recording ----------
-  $('rec').onclick = () => (recorder && recorder.state === 'recording') ? stopRec() : startRec();
-
-  async function startRec() {
-    if (!view.captureStream || !window.MediaRecorder) {
-      alert('This browser cannot record video from the page.');
-      return;
-    }
+  // ---------------------------------------------------------------- screen wake lock
+  async function keepAwake() {
+    if (!('wakeLock' in navigator)) { log('Wake Lock not supported: set Auto-Lock to Never during long recordings', 'w'); return; }
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true }
-      });
-    } catch (err) {
-      alert('Microphone access is needed to record your voice.\n' + err.message);
+      wakeLock = await navigator.wakeLock.request('screen');
+      log('Screen wake lock on');
+      wakeLock.addEventListener('release', () => log('Screen wake lock released'));
+    } catch (e) { log('Wake lock refused: ' + errMsg(e), 'w'); }
+  }
+  function releaseAwake() { try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; }
+
+  document.addEventListener('visibilitychange', () => {
+    log(`Page ${document.visibilityState}${recState !== 'idle' ? ` (recorder: ${recorder && recorder.state})` : ''}`, recState !== 'idle' && document.hidden ? 'w' : 'i');
+    if (document.visibilityState === 'visible' && (recState === 'recording' || recState === 'paused')) {
+      if (!wakeLock) keepAwake();
+      if (recorder && recorder.state === 'inactive') {
+        log('Recorder stopped while the app was in the background: saving what was recorded', 'w');
+        finishRecording(true);
+      }
+    }
+  });
+  window.addEventListener('pagehide', () => { if (recState !== 'idle') { log('pagehide during recording', 'w'); saveMeta(); } });
+
+  // ---------------------------------------------------------------- recording
+  $('rec').onclick = () => (recState === 'recording' || recState === 'paused') ? stopRecording() : startRecording();
+  $('recPause').onclick = () => {
+    if (!recorder) return;
+    if (recState === 'recording') {
+      try { recorder.pause(); } catch (e) { log('pause() failed: ' + errMsg(e), 'w'); return; }
+      recState = 'paused'; recPausedAt = performance.now();
+      act('recPause');
+      $('recPause').textContent = 'Resume rec';
+      $('recBadge').classList.add('paused');
+    } else if (recState === 'paused') {
+      try { recorder.resume(); } catch (e) { log('resume() failed: ' + errMsg(e), 'w'); return; }
+      recPausedTotal += performance.now() - recPausedAt;
+      recState = 'recording';
+      act('recResume');
+      $('recPause').textContent = 'Pause rec';
+      $('recBadge').classList.remove('paused');
+    }
+  };
+
+  function saveMeta(extra) {
+    if (!sessionId) return Promise.resolve();
+    return setMeta('session', Object.assign({
+      id: sessionId, state: recState === 'idle' ? 'stopped' : 'recording',
+      mime: recorder && recorder.mimeType || pickType(), chunkCount, bytes: recBytes,
+      durationMs: Math.round(recElapsed()), width: view.width, height: view.height, version: VERSION
+    }, extra || {})).then(() => setMeta('actions', { list: actions })).catch(e => log('Could not save session info: ' + errMsg(e), 'w'));
+  }
+
+  async function startRecording() {
+    if (!view.captureStream || !window.MediaRecorder) { alert('This browser cannot record video from the page.'); return; }
+    const prev = await getMeta('session').catch(() => null);
+    if (prev && prev.state !== 'shared' && !confirm('Starting a new recording will delete the previous one. Continue?')) return;
+
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch (e) {
+      alert('Microphone access is needed to record your voice.\n' + errMsg(e));
+      log('Microphone refused: ' + errMsg(e), 'e');
       return;
     }
-    const stream = view.captureStream(FPS);
-    micStream.getAudioTracks().forEach(t => stream.addTrack(t));
+    micStream.getAudioTracks().forEach(t => t.addEventListener('ended', () => log('Microphone track ended', 'w')));
 
+    try { if (navigator.storage && navigator.storage.persist) log('Persistent storage: ' + await navigator.storage.persist()); } catch (e) {}
+    const st = await storageInfo();
+    log('Storage: ' + st.text);
+    if (st.quota && st.quota - st.usage < 3 * 1024 * MB) log('Less than 3 GB available for the app: long recordings may not fit', 'w');
+
+    await Promise.all(['chunks', 'out', 'meta'].map(clearStore)).catch(e => log('Clear storage failed: ' + errMsg(e), 'w'));
+    hideResult(); hideBanner();
+    rawBlob = null;
+
+    const stream = view.captureStream(RENDER_FPS);
+    micStream.getAudioTracks().forEach(t => stream.addTrack(t));
     const type = pickType();
     try {
-      recorder = new MediaRecorder(stream, type ? { mimeType: type, videoBitsPerSecond: 5000000 } : {});
-    } catch (err) {
+      recorder = new MediaRecorder(stream, Object.assign(type ? { mimeType: type } : {}, { videoBitsPerSecond: VIDEO_BPS, audioBitsPerSecond: 128000, videoKeyFrameIntervalDuration: 1000 }));
+    } catch (e) {
+      log('MediaRecorder options refused (' + errMsg(e) + '), using defaults', 'w');
       recorder = new MediaRecorder(stream);
     }
 
-    chunks = [];
-    hideResult();
-    await safe(db.clear());
-
-    recorder.ondataavailable = async e => {
+    sessionId = Date.now().toString(36);
+    chunkCount = 0; recBytes = 0; writeErrors = 0; writeChain = Promise.resolve(); stopRequested = false;
+    actions = [];
+    recorder.ondataavailable = e => {
       if (!e.data || !e.data.size) return;
-      const i = chunks.length;
-      chunks.push(e.data);
-      // back up each chunk as it arrives, so a crash never loses the take
-      try {
-        const buf = await e.data.arrayBuffer();
-        await db.put({ i, buf, type: recorder.mimeType || e.data.type });
-      } catch (err) { console.warn('Backup failed', err); }
+      const i = chunkCount++;
+      const blob = e.data;
+      recBytes += blob.size;
+      // Save every chunk to the phone's storage as soon as it arrives, in order.
+      writeChain = writeChain.then(() => putBlobRecord('chunks', { i, blob })).catch(err => {
+        writeErrors++;
+        log(`Could not save chunk ${i}: ${errMsg(err)}`, 'e');
+      });
     };
-    recorder.onstop = finishRec;
-    recorder.onerror = e => alert('Recording error: ' + ((e.error && e.error.message) || e.type));
+    recorder.onerror = e => log('Recorder error: ' + errMsg(e.error || e), 'e');
+    recorder.onstop = () => {
+      log(`Recorder stopped (${stopRequested ? 'by user' : 'unexpectedly'})`, stopRequested ? 'i' : 'w');
+      finishRecording(!stopRequested);
+    };
 
-    recorder.start(1000);   // one chunk per second
-    recStart = Date.now();
+    recorder.start(1000);
+    recState = 'recording';
+    recStart = performance.now(); recPausedTotal = 0;
+    act('recStart', { fps, w: view.width, h: view.height });
+    log(`Recording started · ${recorder.mimeType || type || 'default format'} · ${view.width}×${view.height} @${RENDER_FPS}fps · ${(VIDEO_BPS / 1e6).toFixed(1)} Mbps`);
+    keepAwake();
+    saveMeta();
+
     $('rec').textContent = '■ Stop recording';
     $('rec').classList.add('recording');
-    $('recBadge').style.display = 'block';
-    $('loadBtn').style.pointerEvents = 'none';
-    $('loadBtn').style.opacity = .35;
-    timer = setInterval(() => {
-      const s = Math.floor((Date.now() - recStart) / 1000);
-      $('recBadge').textContent = `● REC ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    $('recPause').disabled = false; $('recPause').textContent = 'Pause rec';
+    $('recBadge').style.display = 'block'; $('recBadge').classList.remove('paused');
+    $('loadBtn').classList.add('disabled');
+    recTimer = setInterval(() => {
+      $('recBadge').textContent = `${recState === 'paused' ? '❚❚ PAUSED' : '● REC'} ${fmtRec(recElapsed())}`;
     }, 250);
+    metaTimer = setInterval(async () => {
+      saveMeta();
+      if (DEBUG) {
+        const st2 = await storageInfo();
+        log(`rec ${fmtRec(recElapsed())} · ${chunkCount} chunks · ${mbs(recBytes)} · ${recorder && recorder.state} · ${st2.text}${writeErrors ? ' · write errors: ' + writeErrors : ''}`);
+      }
+    }, 5000);
   }
 
-  function stopRec() {
-    if (recorder && recorder.state !== 'inactive') recorder.stop();
+  function stopRecording() {
+    if (!recorder || recorder.state === 'inactive') return finishRecording(false);
+    stopRequested = true;
+    act('recStop');
+    $('rec').disabled = true;
+    try { recorder.stop(); } catch (e) { log('stop() failed: ' + errMsg(e), 'e'); finishRecording(true); }
   }
 
-  function finishRec() {
-    clearInterval(timer);
+  let finishing = false;
+  async function finishRecording(unexpected) {
+    if (finishing || recState === 'idle') return;
+    finishing = true;
+    const durationMs = recElapsed();
+    recState = 'finishing';
+    clearInterval(recTimer); clearInterval(metaTimer);
+    releaseAwake();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
     $('rec').textContent = '● Start recording';
     $('rec').classList.remove('recording');
     $('recBadge').style.display = 'none';
-    $('loadBtn').style.pointerEvents = '';
-    $('loadBtn').style.opacity = '';
-    if (!chunks.length) { alert('Nothing was recorded.'); return; }
-    const type = recorder.mimeType || chunks[0].type || 'video/mp4';
-    finalize(new Blob(chunks, { type }), (Date.now() - recStart) / 1000);
+    $('recPause').disabled = true;
+    $('loadBtn').classList.remove('disabled');
+
+    await writeChain;                      // wait for the last chunks to be on disk
+    recState = 'idle';
+    await saveMeta({ state: 'stopped', durationMs: Math.round(durationMs) });
+    log(`Recording finished: ${fmtRec(durationMs)} · ${chunkCount} chunks · ${mbs(recBytes)}${writeErrors ? ' · ' + writeErrors + ' chunk(s) not saved' : ''}`);
+    if (unexpected) alert('The recording was interrupted. Everything recorded up to that point has been kept.');
+    $('rec').disabled = false;
+    enableEditing(true);
+    finishing = false;
+    await finalizeFromStorage(durationMs);
   }
 
-  // ---------- Convert the raw recording into a standard MP4 ----------
-  // Browsers write "fragmented" files with no total duration in the header:
-  // WhatsApp rejects them and players show 0:00. We rebuild a regular MP4
-  // (H.264 + AAC, duration and index at the start of the file).
-  let mediabunny = null;
-  async function toStandardMp4(blob, onProgress) {
-    mediabunny = mediabunny || await import('https://cdn.jsdelivr.net/npm/mediabunny@1/+esm');
-    const { Input, Output, Conversion, ALL_FORMATS, BlobSource, BufferTarget, Mp4OutputFormat } = mediabunny;
-    const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
-    const output = new Output({
-      format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
-      target: new BufferTarget()
-    });
-    // Already H.264/AAC (Android, iPhone): tracks are copied as they are, which is fast.
-    // Other codecs (e.g. WebM): re-encoded with the phone's own encoder.
-    const conversion = await Conversion.init({
-      input, output,
-      video: { codec: 'avc' },
-      audio: { codec: 'aac' }
-    });
-    if (!conversion.isValid) throw new Error('This recording cannot be converted on this device.');
-    conversion.onProgress = onProgress;
-    await conversion.execute();
-    return new Blob([output.target.buffer], { type: 'video/mp4' });
-  }
-
-  async function finalize(raw, seconds) {
-    $('resultText').textContent = 'Preparing video…';
-    $('preview').removeAttribute('src');
-    $('save').disabled = true;
-    $('result').style.display = 'block';
-    try {
-      const mp4 = await toStandardMp4(raw, p => {
-        $('resultText').textContent = `Preparing video… ${Math.round(p * 100)}%`;
-      });
-      showResult(mp4, seconds);
-    } catch (err) {
-      console.warn('Conversion failed', err);
-      showResult(raw, seconds, 'Not converted: ' + (err.message || err));
-    } finally {
-      $('save').disabled = false;
+  // ---------------------------------------------------------------- export: rebuild a standard MP4
+  // Writes the converted file in 4 MB parts to storage, so a 2 GB export never sits in memory.
+  class SpillWriter {
+    constructor() { this.cap = 4 * MB; this.buf = new Uint8Array(this.cap); this.bufStart = 0; this.bufLen = 0; this.end = 0; this.patches = []; this.idx = 0; }
+    async write(data, pos) {
+      const n = data.length;
+      if (pos > this.end) await this.append(new Uint8Array(pos - this.end));
+      const ovEnd = Math.min(pos + n, this.end);
+      if (pos < ovEnd) {                                  // overwrite of bytes already written
+        const flushedEnd = Math.min(ovEnd, this.bufStart);
+        if (pos < flushedEnd) this.patches.push({ pos, bytes: data.slice(0, flushedEnd - pos) });
+        const from = Math.max(pos, this.bufStart);
+        if (from < ovEnd) this.buf.set(data.subarray(from - pos, ovEnd - pos), from - this.bufStart);
+      }
+      if (pos + n > this.end) await this.append(data.subarray(this.end - pos));
+    }
+    async append(d) {
+      let off = 0;
+      while (off < d.length) {
+        const k = Math.min(this.cap - this.bufLen, d.length - off);
+        this.buf.set(d.subarray(off, off + k), this.bufLen);
+        this.bufLen += k; off += k; this.end += k;
+        if (this.bufLen === this.cap) await this.flush();
+      }
+    }
+    async flush() {
+      if (!this.bufLen) return;
+      const blob = new Blob([this.buf.slice(0, this.bufLen)]);
+      await putBlobRecord('out', { i: this.idx++, start: this.bufStart, size: this.bufLen, blob });
+      this.bufStart += this.bufLen; this.bufLen = 0;
     }
   }
 
-  // ---------- Result / export ----------
+  async function assembleOutput(patches, type) {
+    const recs = (await getAll('out')).sort((a, b) => a.i - b.i);
+    const pieces = [];
+    for (const r of recs) {
+      const s = r.start, e = r.start + r.size;
+      const hits = (patches || []).filter(p => p.pos < e && p.pos + p.bytes.length > s);
+      const b = asBlob(r.blob);
+      if (!hits.length) { pieces.push(b); continue; }
+      const u = new Uint8Array(await b.arrayBuffer());   // one 4 MB part in memory, briefly
+      for (const p of hits) {
+        const a = Math.max(p.pos, s), z = Math.min(p.pos + p.bytes.length, e);
+        u.set(p.bytes.subarray(a - p.pos, z - p.pos), a - s);
+      }
+      pieces.push(new Blob([u]));
+    }
+    return new Blob(pieces, { type });
+  }
+
+  let mediabunny = null;
+  async function loadMediabunny() {
+    if (!mediabunny) {
+      const t = performance.now();
+      try { mediabunny = await import('./mediabunny.min.mjs'); }       // bundled copy: works offline
+      catch (e) { log('Local conversion library unavailable (' + errMsg(e) + '), using CDN', 'w'); mediabunny = await import('https://cdn.jsdelivr.net/npm/mediabunny@1/+esm'); }
+      log(`Conversion library loaded in ${((performance.now() - t) / 1000).toFixed(1)} s`);
+    }
+    return mediabunny;
+  }
+
+  async function toStandardMp4(raw, onProgress) {
+    const { Input, Output, Conversion, ALL_FORMATS, BlobSource, StreamTarget, Mp4OutputFormat } = await loadMediabunny();
+    await clearStore('out');
+    const writer = new SpillWriter();
+    const writable = new WritableStream({ write: chunk => writer.write(chunk.data, chunk.position) });
+    const input = new Input({ source: new BlobSource(raw), formats: ALL_FORMATS });
+    const output = new Output({
+      format: new Mp4OutputFormat({ fastStart: false }),
+      target: new StreamTarget(writable, { chunked: true, chunkSize: 4 * MB })
+    });
+    const conversion = await Conversion.init({ input, output });
+    if (conversion.discardedTracks && conversion.discardedTracks.length) {
+      log('Tracks dropped by conversion: ' + conversion.discardedTracks.map(d => `${d.track.type} (${d.reason})`).join(', '), 'w');
+    }
+    if (!conversion.isValid) throw new Error('This recording cannot be converted on this device');
+    conversion.onProgress = onProgress;
+    await conversion.execute();
+    await writer.flush();
+    log(`Converted file: ${mbs(writer.end)} in ${writer.idx} parts, ${writer.patches.length} header patch(es)`);
+    await setMeta('export', { patches: writer.patches, size: writer.end });
+    return assembleOutput(writer.patches, 'video/mp4');
+  }
+
+  async function finalizeFromStorage(durationMs) {
+    showResult('Preparing video…');
+    $('progress').style.display = ''; $('progress').value = 0;
+    $('save').disabled = true; $('saveRaw').style.display = 'none';
+    const session = await getMeta('session').catch(() => null);
+    const mime = (session && session.mime) || 'video/mp4';
+    let records;
+    try { records = (await getAll('chunks')).sort((a, b) => a.i - b.i); }
+    catch (e) { log('Could not read the saved recording: ' + errMsg(e), 'e'); showResult('⚠︎ Could not read the saved recording: ' + errMsg(e)); return; }
+    if (!records.length) { showResult('⚠︎ Nothing was recorded.'); return; }
+    const missing = records.length && records[records.length - 1].i + 1 - records.length;
+    if (missing) log(`${missing} chunk(s) missing in storage`, 'w');
+    rawBlob = new Blob(records.map(r => asBlob(r.blob)), { type: mime.split(';')[0] });
+    log(`Raw recording: ${mbs(rawBlob.size)} from ${records.length} chunks (${blobMode} mode)`);
+
+    const t = performance.now();
+    try {
+      const mp4 = await toStandardMp4(rawBlob, p => {
+        $('progress').value = p;
+        $('resultText').textContent = `Preparing video… ${Math.round(p * 100)}%`;
+      });
+      const secs = (performance.now() - t) / 1000;
+      if (mp4.size < 20000) throw new Error('the saved data contains no usable video yet');
+      log(`Export ready in ${secs.toFixed(1)} s`);
+      await setMeta('session', Object.assign({}, session || {}, { state: 'exported', exportSeconds: +secs.toFixed(1) }));
+      await clearStore('chunks').catch(() => {});    // free space: the converted file is kept
+      rawBlob = null;
+      setResultFile(mp4, durationMs, `standard MP4 · ready in ${secs.toFixed(1)} s`);
+    } catch (e) {
+      log('Conversion failed: ' + (e && e.stack || errMsg(e)), 'e');
+      setResultFile(rawBlob, durationMs, '⚠︎ not converted: ' + errMsg(e), true);
+    }
+  }
+
+  // ---------------------------------------------------------------- result / sharing
   function fileName(type) {
     const d = new Date(), p = n => String(n).padStart(2, '0');
     const ext = type.includes('mp4') ? 'mp4' : 'webm';
     return `seeing-roundnet-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.${ext}`;
   }
-
-  function showResult(blob, seconds, warning) {
+  function showResult(text) {
+    $('resultText').textContent = text;
+    $('result').style.display = 'block';
+  }
+  function hideResult() {
+    $('result').style.display = 'none';
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    resultUrl = null; resultFile = null;
+    $('preview').removeAttribute('src'); $('preview').load();
+  }
+  function setResultFile(blob, durationMs, note, isRaw) {
     if (resultUrl) URL.revokeObjectURL(resultUrl);
     resultUrl = URL.createObjectURL(blob);
-    resultFile = new File([blob], fileName(blob.type), { type: blob.type.split(';')[0] });
+    const type = (blob.type || 'video/mp4').split(';')[0];
+    resultFile = new File([blob], fileName(type), { type });
     $('preview').src = resultUrl;
-    const mb = (blob.size / 1048576).toFixed(1);
-    $('resultText').textContent = `Recording ready · ${seconds ? Math.round(seconds) + ' s · ' : ''}${mb} MB · ${resultFile.type}`
-      + (warning ? ` · ⚠︎ ${warning}` : ' · standard MP4');
+    $('progress').style.display = 'none';
+    $('resultText').textContent = `Recording ready · ${durationMs ? fmtRec(durationMs) + ' · ' : ''}${mbs(blob.size)} · ${note}`;
+    $('resultText').className = isRaw ? 'warn' : '';
+    $('save').disabled = false;
+    $('saveRaw').style.display = (DEBUG && rawBlob && !isRaw) ? '' : 'none';
     $('result').style.display = 'block';
-    $('result').scrollIntoView({ behavior: 'smooth' });
-    setInfo(`Last file: ${mb} MB`);
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setInfo(`last file ${mbs(blob.size)}`);
   }
-  function hideResult() { $('result').style.display = 'none'; }
-
-  function download() {
+  function download(file, url) {
     const a = document.createElement('a');
-    a.href = resultUrl; a.download = resultFile.name;
+    a.href = url; a.download = file.name;
     document.body.appendChild(a); a.click(); a.remove();
   }
-
-  $('save').onclick = async () => {
-    if (!resultFile) return;
-    if (navigator.canShare && navigator.canShare({ files: [resultFile] })) {
-      try {
-        await navigator.share({ files: [resultFile] });
-        safe(db.clear());
-      } catch (err) {
-        if (err.name !== 'AbortError') download();
-      }
-    } else {
-      download();
-      safe(db.clear());
+  async function shareFile(file, url) {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); log('Shared ' + file.name); return true; }
+      catch (e) { if (e.name === 'AbortError') { log('Share cancelled'); return false; } log('Share failed: ' + errMsg(e) + ' → download instead', 'w'); }
     }
+    download(file, url);
+    return true;
+  }
+  $('save').onclick = () => resultFile && shareFile(resultFile, resultUrl);
+  $('saveRaw').onclick = () => {
+    if (!rawBlob) return;
+    const type = (rawBlob.type || 'video/mp4').split(';')[0];
+    const f = new File([rawBlob], 'raw-' + fileName(type), { type });
+    shareFile(f, URL.createObjectURL(rawBlob));
   };
-  $('discard').onclick = () => {
-    if (!confirm('Delete this recording?')) return;
-    hideResult(); safe(db.clear());
+  $('discard').onclick = async () => {
+    if (!confirm('Delete this recording from the phone?')) return;
+    hideResult();
+    rawBlob = null;
+    await Promise.all(['chunks', 'out', 'meta'].map(clearStore)).catch(() => {});
+    log('Recording deleted');
   };
 
-  // ---------- Recover an unsaved recording after a crash ----------
-  safe(db.all().then(items => {
-    if (!items || !items.length) return;
-    $('banner').style.display = 'block';
-    $('recover').onclick = () => {
-      items.sort((a, b) => a.i - b.i);
-      const blob = new Blob(items.map(x => x.buf), { type: items[0].type || 'video/mp4' });
-      $('banner').style.display = 'none';
-      finalize(blob);
+  // ---------------------------------------------------------------- recovery at startup
+  function hideBanner() { $('banner').style.display = 'none'; }
+  async function checkRecovery() {
+    let session;
+    try { session = await getMeta('session'); } catch (e) { log('Storage unavailable: ' + errMsg(e), 'e'); return; }
+    if (!session) return;
+    if (session.state === 'exported') {
+      const exp = await getMeta('export').catch(() => null);
+      const parts = await getAll('out').catch(() => []);
+      if (!parts.length) return;
+      $('bannerText').textContent = `Your last video (${fmtRec(session.durationMs || 0)}) is still saved on this phone.`;
+      $('recover').textContent = 'Open it';
+      $('banner').style.display = 'block';
+      $('recover').onclick = async () => {
+        hideBanner();
+        const blob = await assembleOutput(exp && exp.patches, 'video/mp4');
+        setResultFile(blob, session.durationMs, 'standard MP4 (restored)');
+      };
+    } else {
+      const chunks = await getAll('chunks').catch(() => []);
+      if (!chunks.length) return;
+      $('bannerText').textContent = `An unsaved recording was found (about ${fmtRec(session.durationMs || 0)}). It can be recovered.`;
+      $('recover').textContent = 'Recover it';
+      $('banner').style.display = 'block';
+      $('recover').onclick = () => { hideBanner(); log('Recovering previous recording'); finalizeFromStorage(); };
+      log(`Found an unfinished recording: ${chunks.length} chunks`, 'w');
+    }
+    $('dismiss').onclick = async () => {
+      if (!confirm('Delete the saved recording?')) return;
+      hideBanner();
+      await Promise.all(['chunks', 'out', 'meta'].map(clearStore)).catch(() => {});
     };
-    $('dismiss').onclick = () => { $('banner').style.display = 'none'; safe(db.clear()); };
-  }));
+  }
 
+  // ---------------------------------------------------------------- diagnostics
+  $('diag').onclick = async () => {
+    const st = await storageInfo();
+    const session = await getMeta('session').catch(() => null);
+    const support = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm'].map(t => {
+      let ok = false; try { ok = window.MediaRecorder && MediaRecorder.isTypeSupported(t); } catch (e) {}
+      return `  ${t}: ${ok}`;
+    }).join('\n');
+    const report = [
+      `Seeing Roundnet diagnostics · ${VERSION} · ${new Date().toISOString()}`,
+      `URL: ${location.href}`,
+      `User agent: ${navigator.userAgent}`,
+      `Screen: ${screen.width}×${screen.height} @${devicePixelRatio}x · standalone: ${!!(navigator.standalone || matchMedia('(display-mode: standalone)').matches)}`,
+      `Compat mode: ${COMPAT} · render fps: ${RENDER_FPS} · max side: ${MAX_SIDE} · bitrate: ${VIDEO_BPS / 1e6} Mbps`,
+      `APIs: MediaRecorder=${!!window.MediaRecorder} captureStream=${!!view.captureStream} wakeLock=${'wakeLock' in navigator} VideoEncoder=${!!window.VideoEncoder} AudioEncoder=${!!window.AudioEncoder} rVFC=${'requestVideoFrameCallback' in HTMLVideoElement.prototype}`,
+      `Recorder formats:\n${support}`,
+      `Storage: ${st.text} · storage mode: ${blobMode}`,
+      `Video: ${video.videoWidth}×${video.videoHeight} · ${isFinite(video.duration) ? video.duration.toFixed(1) + ' s' : 'none'} · ≈${fps} fps`,
+      `Last session: ${JSON.stringify(session)}`,
+      `Actions recorded: ${actions.length}`,
+      '',
+      '--- Log ---',
+      ...logLines,
+      '',
+      '--- Action log (JSON) ---',
+      JSON.stringify(actions)
+    ].join('\n');
+    const file = new File([report], `seeing-roundnet-diagnostics-${Date.now()}.txt`, { type: 'text/plain' });
+    shareFile(file, URL.createObjectURL(file));
+  };
+
+  // ---------------------------------------------------------------- start
+  log(`${VERSION} · ${navigator.userAgent}`);
+  log(`Recorder format: ${pickType() || 'none'} · wakeLock: ${'wakeLock' in navigator} · VideoEncoder: ${!!window.VideoEncoder} · AudioEncoder: ${!!window.AudioEncoder}`);
   setInfo();
+  checkRecovery();
 })();
 </script>
 </body>
