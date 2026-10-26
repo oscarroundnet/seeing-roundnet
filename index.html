@@ -20,7 +20,7 @@
   header button { min-height:34px; padding:6px 10px; font-size:13px; }
   #main { display:flex; flex-direction:column; }
   #stageWrap { display:flex; justify-content:center; background:#000; }
-  #stage { position:relative; background:#000; aspect-ratio:var(--ar); width:min(100%, calc(56dvh * var(--ar))); overflow:hidden; }
+  #stage { position:relative; background:#000; aspect-ratio:var(--ar); width:min(100%, calc(var(--hshare, 56dvh) * var(--ar))); overflow:hidden; }
   #stage video, #stage canvas { position:absolute; inset:0; width:100%; height:100%; }
   #stage video { object-fit:fill; }
   #view { touch-action:none; }
@@ -42,6 +42,8 @@
   #rec { background:var(--accent); color:#fff; flex:1 1 60%; font-size:17px; }
   #rec.recording { background:#fff; color:var(--accent); }
   #recPause { flex:1 1 30%; }
+  select { background:var(--btn); color:var(--fg); border:0; border-radius:10px; padding:10px 12px; font-size:15px; font-weight:600; min-height:44px; font-family:inherit; }
+  #stall { display:none; width:100%; background:#3a1d00; color:var(--warn); border-radius:10px; padding:8px 10px; font-size:14px; }
   #info { font-size:11px; color:var(--muted); padding:0 16px 8px; }
   .card { margin:8px 16px; background:var(--panel); border-radius:12px; padding:12px; display:none; }
   .card p { margin:0 0 8px; font-size:14px; }
@@ -62,7 +64,7 @@
 <header>
   <div>
     <h1>Seeing Roundnet</h1>
-    <div class="sub" id="ver">Proof of concept</div>
+    <div class="sub" id="ver">Proof of concept v2.1</div>
   </div>
   <button id="diag">Send diagnostics</button>
 </header>
@@ -112,6 +114,9 @@
       <button id="clear" disabled>Clear</button>
 
       <div class="label">Recording</div>
+      <div id="stall"></div>
+      <label class="label" for="quality" style="width:auto;margin:0">Quality</label>
+      <select id="quality"><option value="1280">720p</option><option value="1920">1080p</option></select>
       <button id="rec" disabled>● Start recording</button>
       <button id="recPause" disabled>Pause rec</button>
     </div>
@@ -134,17 +139,18 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'PoC v2.0';
+  const VERSION = 'PoC v2.1';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
-  const DEBUG = params.has('debug');
-  const COMPAT = params.has('compat');               // behave like iOS 17 (no audio WebCodecs)
+  const DEBUG = !params.has('nodebug');            // log shown by default during the PoC
+  const COMPAT = !params.has('nocompat');           // behave like iOS 17 (no audio WebCodecs) — on by default
   const RENDER_FPS = Math.min(60, Math.max(15, +params.get('fps') || 30));
-  const MAX_SIDE = Math.min(3840, Math.max(640, +params.get('max') || 1920));
-  const VIDEO_BPS = Math.max(1, +params.get('mbps') || 4) * 1e6;
+  let maxSide = +params.get('max') || (() => { try { return +localStorage.getItem('sr-quality'); } catch (e) { return 0; } })() || 1920;
+  maxSide = Math.min(3840, Math.max(640, maxSide));
+  const videoBps = () => Math.max(0.5, +params.get('mbps') || (maxSide <= 1280 ? 2.5 : 4)) * 1e6;
   const MB = 1048576;
 
-  $('ver').textContent = `Proof of concept${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
+  $('ver').textContent = `Proof of concept v2.1${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
 
   // ---------------------------------------------------------------- logging
   const logLines = [];
@@ -154,6 +160,7 @@
     logLines.push(line);
     if (logLines.length > 2000) logLines.splice(0, logLines.length - 2000);
     (level === 'e' ? console.error : level === 'w' ? console.warn : console.log)(line);
+    schedulePersistLog(level !== 'i');
     if (DEBUG) {
       const d = document.createElement('div');
       if (level !== 'i') d.className = level;
@@ -164,6 +171,15 @@
     }
   }
   if (DEBUG) $('debug').style.display = 'block';
+  let persistTimer = null, prevLog = [];
+  function schedulePersistLog(now) {
+    if (persistTimer && !now) return;
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      persistTimer = null;
+      if (typeof setMeta === 'function') setMeta('log', { lines: logLines.slice(-1500), at: new Date().toISOString() }).catch(() => {});
+    }, now ? 50 : 2000);
+  }
   window.addEventListener('error', e => log(`Uncaught: ${e.message} @${e.filename}:${e.lineno}`, 'e'));
   window.addEventListener('unhandledrejection', e => log(`Unhandled promise: ${e.reason && (e.reason.stack || e.reason.message) || e.reason}`, 'e'));
   const mbs = b => (b / MB).toFixed(1) + ' MB';
@@ -209,6 +225,7 @@
   const clearStore = s => tx(s, 'readwrite', o => o.clear());
   const getMeta = k => tx('meta', 'readonly', o => o.get(k));
   const setMeta = (k, v) => putRec('meta', Object.assign({ k }, v));
+  const delMeta = k => tx('meta', 'readwrite', o => o.delete(k));
 
   let blobMode = 'blob';  // store Blobs (disk-backed); fall back to ArrayBuffers if refused
   async function putBlobRecord(store, rec) {
@@ -231,6 +248,8 @@
   // ---------------------------------------------------------------- canvas + state
   const video = $('video'), view = $('view'), ctx = view.getContext('2d');
   const ink = document.createElement('canvas'), ictx = ink.getContext('2d');
+  const frame = document.createElement('canvas'), fctx = frame.getContext('2d');   // last good video frame
+  let frameValid = false, lastFrameTime = -1, blankFrames = 0;
   let strokes = [], current = null, tool = 'pen', color = '#ff3b30';
   let fps = 30, fpsSamples = [];
   let recorder = null, micStream = null, wakeLock = null;
@@ -239,6 +258,7 @@
   let chunkCount = 0, recBytes = 0, writeChain = Promise.resolve(), writeErrors = 0, stopRequested = false;
   let actions = [];
   let resultFile = null, resultUrl = null, rawBlob = null;
+  let flushTimer = null, lastDataAt = 0, maxGap = 0, stallWarned = false;
   let sessionId = null;
 
   const recElapsed = () => recState === 'idle' ? 0 :
@@ -295,14 +315,37 @@
   });
   video.addEventListener('error', () => log(`Video element error: ${video.error && video.error.message || video.error && video.error.code}`, 'e'));
 
-  video.addEventListener('loadedmetadata', () => {
-    let w = video.videoWidth, h = video.videoHeight;
-    if (!w || !h) { log('Video has no picture size', 'e'); return; }
-    const s = Math.min(1, MAX_SIDE / Math.max(w, h));
+  function applySize() {
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return null;
+    const s = Math.min(1, maxSide / Math.max(w, h));
     const ow = Math.round(w * s / 2) * 2, oh = Math.round(h * s / 2) * 2;   // even sizes for H.264
-    view.width = ink.width = ow;
-    view.height = ink.height = oh;
+    const oldInk = ink.width ? { w: ink.width, h: ink.height } : null;
+    view.width = ink.width = frame.width = ow;
+    view.height = ink.height = frame.height = oh;
+    if (oldInk && (oldInk.w !== ow)) {            // keep drawings in place when the quality changes
+      const k = ow / oldInk.w;
+      strokes.forEach(st => { st.w = Math.max(3, st.w * k); st.pts = st.pts.map(p => [p[0] * k, p[1] * k]); });
+    }
+    redrawInk(); frameValid = false;
     document.documentElement.style.setProperty('--ar', ow / oh);
+    document.documentElement.style.setProperty('--hshare', ow < oh ? '66dvh' : '56dvh');
+    return { w, h, ow, oh };
+  }
+  $('quality').value = String(maxSide <= 1280 ? 1280 : 1920);
+  $('quality').onchange = () => {
+    if (recState !== 'idle') { $('quality').value = String(maxSide); return; }
+    maxSide = +$('quality').value;
+    try { localStorage.setItem('sr-quality', String(maxSide)); } catch (e) {}
+    const r = applySize();
+    log(`Quality set to ${maxSide <= 1280 ? '720p' : '1080p'}${r ? ` → output ${r.ow}×${r.oh}` : ''}`);
+    setInfo();
+  };
+
+  video.addEventListener('loadedmetadata', () => {
+    if (!video.videoWidth || !video.videoHeight) { log('Video has no picture size', 'e'); return; }
+    strokes = [];
+    const { w, h, ow, oh } = applySize();
     $('placeholder').style.display = 'none';
     $('scrub').max = video.duration;
     strokes = []; redrawInk();
@@ -343,9 +386,16 @@
     if (!view.width) return;
     if (now - lastDraw < frameInterval - 3) return;
     lastDraw = now;
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, view.width, view.height);
-    if (video.readyState >= 2) ctx.drawImage(video, 0, 0, view.width, view.height);
+    // Only grab a new picture from the video when it has one ready and the time has moved;
+    // otherwise keep showing the last good frame (no black flashes).
+    if (video.readyState >= 2 && (!frameValid || video.currentTime !== lastFrameTime || !video.paused)) {
+      fctx.drawImage(video, 0, 0, frame.width, frame.height);
+      frameValid = true; lastFrameTime = video.currentTime;
+    } else if (video.readyState < 2 && frameValid) {
+      if (++blankFrames % 30 === 1) log(`Video frame not ready (readyState ${video.readyState}), keeping last frame`, 'w');
+    }
+    if (frameValid) ctx.drawImage(frame, 0, 0);
+    else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, view.width, view.height); }
     ctx.drawImage(ink, 0, 0);
     if (document.activeElement !== $('scrub')) $('scrub').value = video.currentTime;
     $('time').textContent = `${fmtT(video.currentTime)} / ${fmtT(video.duration)}`;
@@ -478,6 +528,7 @@
       try { recorder.resume(); } catch (e) { log('resume() failed: ' + errMsg(e), 'w'); return; }
       recPausedTotal += performance.now() - recPausedAt;
       recState = 'recording';
+      lastDataAt = performance.now();   // no data is expected while paused
       act('recResume');
       $('recPause').textContent = 'Pause rec';
       $('recBadge').classList.remove('paused');
@@ -512,7 +563,7 @@
     log('Storage: ' + st.text);
     if (st.quota && st.quota - st.usage < 3 * 1024 * MB) log('Less than 3 GB available for the app: long recordings may not fit', 'w');
 
-    await Promise.all(['chunks', 'out', 'meta'].map(clearStore)).catch(e => log('Clear storage failed: ' + errMsg(e), 'w'));
+    await Promise.all([clearStore('chunks'), clearStore('out'), ...['session', 'actions', 'export'].map(delMeta)]).catch(e => log('Clear storage failed: ' + errMsg(e), 'w'));
     hideResult(); hideBanner();
     rawBlob = null;
 
@@ -520,7 +571,7 @@
     micStream.getAudioTracks().forEach(t => stream.addTrack(t));
     const type = pickType();
     try {
-      recorder = new MediaRecorder(stream, Object.assign(type ? { mimeType: type } : {}, { videoBitsPerSecond: VIDEO_BPS, audioBitsPerSecond: 128000, videoKeyFrameIntervalDuration: 1000 }));
+      recorder = new MediaRecorder(stream, Object.assign(type ? { mimeType: type } : {}, { videoBitsPerSecond: videoBps(), audioBitsPerSecond: 128000, videoKeyFrameIntervalDuration: 1000 }));
     } catch (e) {
       log('MediaRecorder options refused (' + errMsg(e) + '), using defaults', 'w');
       recorder = new MediaRecorder(stream);
@@ -529,8 +580,13 @@
     sessionId = Date.now().toString(36);
     chunkCount = 0; recBytes = 0; writeErrors = 0; writeChain = Promise.resolve(); stopRequested = false;
     actions = [];
+    lastDataAt = performance.now(); maxGap = 0; stallWarned = false;
     recorder.ondataavailable = e => {
+      const nowT = performance.now();
+      if (recState === 'recording') maxGap = Math.max(maxGap, nowT - lastDataAt);
+      lastDataAt = nowT;
       if (!e.data || !e.data.size) return;
+      if (stallWarned) { stallWarned = false; $('stall').style.display = 'none'; log('Recording data is flowing again'); }
       const i = chunkCount++;
       const blob = e.data;
       recBytes += blob.size;
@@ -547,10 +603,14 @@
     };
 
     recorder.start(1000);
+    // Safari may hold the video in memory instead of giving it back every second: ask for it explicitly.
+    flushTimer = setInterval(() => {
+      if (recorder && recorder.state === 'recording') { try { recorder.requestData(); } catch (e) {} }
+    }, 2000);
     recState = 'recording';
     recStart = performance.now(); recPausedTotal = 0;
     act('recStart', { fps, w: view.width, h: view.height });
-    log(`Recording started · ${recorder.mimeType || type || 'default format'} · ${view.width}×${view.height} @${RENDER_FPS}fps · ${(VIDEO_BPS / 1e6).toFixed(1)} Mbps`);
+    log(`Recording started · ${recorder.mimeType || type || 'default format'} · ${view.width}×${view.height} @${RENDER_FPS}fps · ${(videoBps() / 1e6).toFixed(1)} Mbps`);
     keepAwake();
     saveMeta();
 
@@ -559,15 +619,22 @@
     $('recPause').disabled = false; $('recPause').textContent = 'Pause rec';
     $('recBadge').style.display = 'block'; $('recBadge').classList.remove('paused');
     $('loadBtn').classList.add('disabled');
+    $('quality').disabled = true;
     recTimer = setInterval(() => {
       $('recBadge').textContent = `${recState === 'paused' ? '❚❚ PAUSED' : '● REC'} ${fmtRec(recElapsed())}`;
     }, 250);
     metaTimer = setInterval(async () => {
       saveMeta();
-      if (DEBUG) {
-        const st2 = await storageInfo();
-        log(`rec ${fmtRec(recElapsed())} · ${chunkCount} chunks · ${mbs(recBytes)} · ${recorder && recorder.state} · ${st2.text}${writeErrors ? ' · write errors: ' + writeErrors : ''}`);
+      const gap = performance.now() - lastDataAt;
+      if (recState === 'recording' && gap > 8000 && !stallWarned) {
+        stallWarned = true;
+        log(`No recording data for ${(gap / 1000).toFixed(0)} s (recorder: ${recorder && recorder.state})`, 'e');
+        $('stall').textContent = '⚠︎ The phone stopped delivering the recording. Stop now to keep what was recorded, then send diagnostics.';
+        $('stall').style.display = 'block';
       }
+      const st2 = await storageInfo();
+      log(`rec ${fmtRec(recElapsed())} · ${chunkCount} chunks · ${mbs(recBytes)} · longest gap ${(maxGap / 1000).toFixed(1)} s · ${recorder && recorder.state} · ${st2.text}${writeErrors ? ' · write errors: ' + writeErrors : ''}`);
+      maxGap = 0;
     }, 5000);
   }
 
@@ -585,7 +652,8 @@
     finishing = true;
     const durationMs = recElapsed();
     recState = 'finishing';
-    clearInterval(recTimer); clearInterval(metaTimer);
+    clearInterval(recTimer); clearInterval(metaTimer); clearInterval(flushTimer);
+    $('stall').style.display = 'none';
     releaseAwake();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
     $('rec').textContent = '● Start recording';
@@ -593,6 +661,7 @@
     $('recBadge').style.display = 'none';
     $('recPause').disabled = true;
     $('loadBtn').classList.remove('disabled');
+    $('quality').disabled = false;
 
     await writeChain;                      // wait for the last chunks to be on disk
     recState = 'idle';
@@ -830,7 +899,7 @@
       `URL: ${location.href}`,
       `User agent: ${navigator.userAgent}`,
       `Screen: ${screen.width}×${screen.height} @${devicePixelRatio}x · standalone: ${!!(navigator.standalone || matchMedia('(display-mode: standalone)').matches)}`,
-      `Compat mode: ${COMPAT} · render fps: ${RENDER_FPS} · max side: ${MAX_SIDE} · bitrate: ${VIDEO_BPS / 1e6} Mbps`,
+      `Compat mode: ${COMPAT} · render fps: ${RENDER_FPS} · max side: ${maxSide} · bitrate: ${videoBps() / 1e6} Mbps`,
       `APIs: MediaRecorder=${!!window.MediaRecorder} captureStream=${!!view.captureStream} wakeLock=${'wakeLock' in navigator} VideoEncoder=${!!window.VideoEncoder} AudioEncoder=${!!window.AudioEncoder} rVFC=${'requestVideoFrameCallback' in HTMLVideoElement.prototype}`,
       `Recorder formats:\n${support}`,
       `Storage: ${st.text} · storage mode: ${blobMode}`,
@@ -838,8 +907,11 @@
       `Last session: ${JSON.stringify(session)}`,
       `Actions recorded: ${actions.length}`,
       '',
-      '--- Log ---',
+      '--- Log (this session) ---',
       ...logLines,
+      '',
+      '--- Log (previous session, e.g. before a crash) ---',
+      ...(prevLog.length ? prevLog : ['(none)']),
       '',
       '--- Action log (JSON) ---',
       JSON.stringify(actions)
@@ -852,7 +924,16 @@
   log(`${VERSION} · ${navigator.userAgent}`);
   log(`Recorder format: ${pickType() || 'none'} · wakeLock: ${'wakeLock' in navigator} · VideoEncoder: ${!!window.VideoEncoder} · AudioEncoder: ${!!window.AudioEncoder}`);
   setInfo();
-  checkRecovery();
+  (async () => {
+    try {
+      const old = await getMeta('log');
+      if (old && old.lines) { prevLog = [`(saved ${old.at})`, ...old.lines]; await setMeta('prevlog', { lines: prevLog }); }
+      else { const p2 = await getMeta('prevlog'); if (p2 && p2.lines) prevLog = p2.lines; }
+      if (prevLog.length) log(`Previous session log available (${prevLog.length} lines)`);
+    } catch (e) {}
+    schedulePersistLog(true);
+    checkRecovery();
+  })();
 })();
 </script>
 </body>
