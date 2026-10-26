@@ -62,7 +62,7 @@
 <header>
   <div>
     <h1>Seeing Roundnet</h1>
-    <div class="sub" id="ver">Proof of concept v2</div>
+    <div class="sub" id="ver">Proof of concept</div>
   </div>
   <button id="diag">Send diagnostics</button>
 </header>
@@ -144,7 +144,7 @@
   const VIDEO_BPS = Math.max(1, +params.get('mbps') || 4) * 1e6;
   const MB = 1048576;
 
-  $('ver').textContent = `Proof of concept v2${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
+  $('ver').textContent = `Proof of concept${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
 
   // ---------------------------------------------------------------- logging
   const logLines = [];
