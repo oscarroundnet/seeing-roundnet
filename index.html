@@ -10,147 +10,145 @@
 <meta name="theme-color" content="#111111">
 <title>Seeing Roundnet – PoC</title>
 <style>
-  :root { --bg:#111; --panel:#1c1c1c; --fg:#f2f2f2; --muted:#9a9a9a; --btn:#2b2b2b; --accent:#ff3b30; --ok:#30d158; --warn:#ffd60a; --ar:1.7778; }
+  :root { --bg:#111; --panel:#1c1c1c; --fg:#f2f2f2; --muted:#9a9a9a; --btn:#2b2b2b; --accent:#ff3b30; --ok:#30d158; --warn:#ffd60a; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system, system-ui, Segoe UI, Roboto, sans-serif; }
-  body { padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-  header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 16px; }
-  header h1 { font-size:16px; margin:0; }
-  header .sub { font-size:11px; color:var(--muted); }
-  header button { min-height:34px; padding:6px 10px; font-size:13px; }
-  #main { display:flex; flex-direction:column; }
-  #stageWrap { display:flex; justify-content:center; background:#000; }
-  #stage { position:relative; background:#000; aspect-ratio:var(--ar); width:min(100%, calc(var(--hshare, 56dvh) * var(--ar))); overflow:hidden; }
+  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg); font-family:-apple-system, system-ui, Segoe UI, Roboto, sans-serif; -webkit-user-select:none; user-select:none; }
+  #app { position:fixed; inset:0; display:grid; grid-template-columns:1fr; grid-template-rows:auto 1fr auto;
+         grid-template-areas:"head" "stage" "bar";
+         padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  header { grid-area:head; display:flex; align-items:center; justify-content:space-between; gap:6px; padding:4px 10px; }
+  header h1 { font-size:14px; margin:0; white-space:nowrap; }
+  header .sub { font-size:10px; color:var(--muted); white-space:nowrap; }
+  header .hbtns { display:flex; gap:6px; align-items:center; flex:0 0 auto; }
+  @media (max-width:420px) { header .sub { display:none; } }
+  header button, header select { min-height:30px; padding:4px 8px; font-size:12px; border-radius:8px; }
+  #stageWrap { grid-area:stage; position:relative; min-height:0; min-width:0; display:flex; align-items:center; justify-content:center; background:#000; overflow:hidden; }
+  #stage { position:relative; background:#000; }
   #stage video, #stage canvas { position:absolute; inset:0; width:100%; height:100%; }
   #stage video { object-fit:fill; }
   #view { touch-action:none; }
   #placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; text-align:center; padding:16px; pointer-events:none; }
-  #recBadge { position:absolute; top:8px; left:8px; background:var(--accent); color:#fff; font-size:13px; font-weight:700; padding:3px 8px; border-radius:6px; display:none; pointer-events:none; font-variant-numeric:tabular-nums; }
+  #recBadge { position:absolute; top:8px; left:8px; background:var(--accent); color:#fff; font-size:13px; font-weight:700; padding:3px 8px; border-radius:6px; display:none; pointer-events:none; font-variant-numeric:tabular-nums; z-index:2; }
   #recBadge.paused { background:var(--warn); color:#111; }
-  .panel { padding:8px 16px 12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  button, .filebtn { background:var(--btn); color:var(--fg); border:0; border-radius:10px; padding:10px 13px; font-size:15px; font-weight:600; cursor:pointer; min-height:44px; font-family:inherit; }
+  #stall { position:absolute; left:8px; right:8px; top:40px; display:none; background:rgba(58,29,0,.95); color:var(--warn); border-radius:10px; padding:8px 10px; font-size:14px; z-index:3; }
+  #bar { grid-area:bar; padding:6px 8px 8px; background:#151515; border-top:1px solid #262626; }
+  .row { display:flex; gap:8px; align-items:center; }
+  #scrub { flex:1; min-width:80px; accent-color:var(--accent); height:28px; }
+  #time { font-variant-numeric:tabular-nums; font-size:12px; color:var(--muted); white-space:nowrap; }
+  .tools { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin-top:6px; }
+  .break { flex-basis:100%; height:0; }
+  .sep { width:1px; align-self:stretch; background:#333; margin:0 2px; flex:0 0 1px; }
+  button, .filebtn, select { background:var(--btn); color:var(--fg); border:0; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .tools button, .tools .filebtn { flex:0 0 auto; min-width:42px; height:42px; padding:0 10px; display:inline-flex; align-items:center; justify-content:center; }
   button:disabled { opacity:.35; }
   button.active { background:#fff; color:#111; }
   .filebtn input { display:none; }
   .filebtn.disabled { opacity:.35; pointer-events:none; }
-  .row { display:flex; gap:8px; align-items:center; width:100%; flex-wrap:wrap; }
-  #scrub { flex:1; min-width:120px; accent-color:var(--accent); }
-  #time { font-variant-numeric:tabular-nums; font-size:13px; color:var(--muted); }
-  .swatch { width:44px; padding:0; }
-  .swatch i { display:inline-block; width:18px; height:18px; border-radius:50%; vertical-align:middle; }
-  .label { font-size:12px; color:var(--muted); width:100%; margin-top:2px; }
-  #rec { background:var(--accent); color:#fff; flex:1 1 60%; font-size:17px; }
+  #color i { display:inline-block; width:20px; height:20px; border-radius:50%; border:2px solid rgba(255,255,255,.6); }
+  #rec { background:var(--accent); color:#fff; min-width:64px; }
   #rec.recording { background:#fff; color:var(--accent); }
-  #recPause { flex:1 1 30%; }
-  select { background:var(--btn); color:var(--fg); border:0; border-radius:10px; padding:10px 12px; font-size:15px; font-weight:600; min-height:44px; font-family:inherit; }
-  #stall { display:none; width:100%; background:#3a1d00; color:var(--warn); border-radius:10px; padding:8px 10px; font-size:14px; }
-  #info { font-size:11px; color:var(--muted); padding:0 16px 8px; }
-  .card { margin:8px 16px; background:var(--panel); border-radius:12px; padding:12px; display:none; }
+  #sheet { position:fixed; left:0; right:0; bottom:0; max-height:72dvh; overflow-y:auto; background:var(--panel); border-radius:16px 16px 0 0; box-shadow:0 -8px 30px rgba(0,0,0,.6); padding:10px 14px calc(14px + env(safe-area-inset-bottom)); display:none; z-index:10; -webkit-user-select:text; user-select:text; }
+  #sheet .close { position:sticky; top:0; float:right; min-height:34px; padding:4px 12px; font-size:14px; z-index:1; }
+  .card { margin:6px 0 10px; display:none; }
   .card p { margin:0 0 8px; font-size:14px; }
-  #result video { width:100%; max-height:50dvh; border-radius:8px; background:#000; margin-bottom:8px; }
+  .card button { min-height:44px; padding:10px 13px; margin:0 6px 6px 0; }
+  #result video { width:100%; max-height:42dvh; border-radius:8px; background:#000; margin-bottom:8px; }
   progress { width:100%; height:8px; margin-bottom:8px; accent-color:var(--ok); }
   .warn { color:var(--warn); }
-  #debug { margin:8px 16px 16px; max-height:30dvh; overflow:auto; background:#000; color:#7CFC9A; font:11px/1.35 ui-monospace, Menlo, monospace; padding:6px 8px; white-space:pre-wrap; display:none; border:1px solid #333; border-radius:8px; }
+  #info { font-size:11px; color:var(--muted); margin:6px 0; clear:both; }
+  #debug { max-height:40dvh; overflow:auto; background:#000; color:#7CFC9A; font:11px/1.35 ui-monospace, Menlo, monospace; padding:6px 8px; white-space:pre-wrap; display:none; border:1px solid #333; border-radius:8px; }
   #debug .e { color:#ff6b6b; } #debug .w { color:#ffd60a; }
   @media (orientation:landscape) and (max-height:600px) {
-    #main { flex-direction:row; height:calc(100dvh - 50px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
-    #stageWrap { flex:1; min-width:0; align-items:center; }
-    #stage { width:min(100%, calc((100dvh - 60px) * var(--ar))); }
-    #side { width:340px; overflow-y:auto; }
+    #app { grid-template-columns:1fr 196px; grid-template-rows:auto 1fr; grid-template-areas:"stage head" "stage bar"; }
+    header { flex-direction:column; align-items:stretch; padding:6px 8px 0; }
+    #bar { border-top:0; border-left:1px solid #262626; overflow-y:auto; }
+    .row { flex-wrap:wrap; }
+    .sep, .break { display:none; }
   }
 </style>
 </head>
 <body>
-<header>
-  <div>
-    <h1>Seeing Roundnet</h1>
-    <div class="sub" id="ver">Proof of concept v2.1</div>
-  </div>
-  <button id="diag">Send diagnostics</button>
-</header>
+<div id="app">
+  <header>
+    <div>
+      <h1>Seeing Roundnet</h1>
+      <div class="sub" id="ver">Proof of concept v2.2</div>
+    </div>
+    <div class="hbtns">
+      <select id="quality" aria-label="Recording quality"><option value="1280">720p</option><option value="1920">1080p</option></select>
+      <button id="logBtn">Log</button>
+      <button id="diag">Report</button>
+    </div>
+  </header>
 
-<div id="banner" class="card">
-  <p id="bannerText"></p>
-  <button id="recover">Recover it</button>
-  <button id="dismiss">Discard</button>
-</div>
-
-<div id="main">
   <div id="stageWrap">
     <div id="stage">
       <video id="video" playsinline muted preload="auto"></video>
       <canvas id="view"></canvas>
-      <div id="placeholder">Load a video to start</div>
+      <div id="placeholder">Tap 📂 to load a video</div>
       <div id="recBadge">● REC 00:00</div>
+      <div id="stall"></div>
     </div>
   </div>
 
-  <div id="side">
-    <div class="panel">
-      <div class="row">
-        <input id="scrub" type="range" min="0" max="0" step="0.001" value="0" disabled>
-        <span id="time">00:00.000 / 00:00.000</span>
-      </div>
-
-      <label class="filebtn" id="loadBtn">Load video<input id="file" type="file" accept="video/*"></label>
-      <button id="back" disabled aria-label="Previous frame">◀︎ frame</button>
-      <button id="play" disabled>Play</button>
-      <button id="fwd" disabled aria-label="Next frame">frame ▶︎</button>
-
-      <div class="label">Speed</div>
-      <button class="speed" data-v="0.1" disabled>0.1×</button>
-      <button class="speed" data-v="0.25" disabled>0.25×</button>
-      <button class="speed" data-v="0.5" disabled>0.5×</button>
-      <button class="speed active" data-v="1" disabled>1×</button>
-
-      <div class="label">Drawing</div>
-      <button class="tool active" data-t="pen" disabled>Pen</button>
-      <button class="tool" data-t="arrow" disabled>Arrow</button>
-      <button class="swatch active" data-c="#ff3b30" disabled aria-label="Red"><i style="background:#ff3b30"></i></button>
-      <button class="swatch" data-c="#ffd60a" disabled aria-label="Yellow"><i style="background:#ffd60a"></i></button>
-      <button class="swatch" data-c="#5ac8fa" disabled aria-label="Blue"><i style="background:#5ac8fa"></i></button>
-      <button class="swatch" data-c="#ffffff" disabled aria-label="White"><i style="background:#fff"></i></button>
-      <button id="undo" disabled>Undo</button>
-      <button id="clear" disabled>Clear</button>
-
-      <div class="label">Recording</div>
-      <div id="stall"></div>
-      <label class="label" for="quality" style="width:auto;margin:0">Quality</label>
-      <select id="quality"><option value="1280">720p</option><option value="1920">1080p</option></select>
-      <button id="rec" disabled>● Start recording</button>
-      <button id="recPause" disabled>Pause rec</button>
+  <div id="bar">
+    <div class="row">
+      <input id="scrub" type="range" min="0" max="0" step="0.001" value="0" disabled>
+      <span id="time">00:00.000 / 00:00.000</span>
     </div>
-
-    <div id="info"></div>
-
-    <div id="result" class="card">
-      <p id="resultText"></p>
-      <progress id="progress" max="1" value="0"></progress>
-      <video id="preview" playsinline controls></video>
-      <button id="save">Save / Share video</button>
-      <button id="saveRaw" style="display:none">Share raw file</button>
-      <button id="discard">Delete recording</button>
+    <div class="tools">
+      <label class="filebtn" id="loadBtn" aria-label="Load video">📂<input id="file" type="file" accept="video/*"></label>
+      <button id="back" disabled aria-label="Previous frame">◀︎</button>
+      <button id="play" disabled aria-label="Play">▶</button>
+      <button id="fwd" disabled aria-label="Next frame">▶︎|</button>
+      <button id="speed" disabled aria-label="Speed">1×</button>
+      <span class="sep"></span>
+      <button id="rec" disabled aria-label="Start recording">● REC</button>
+      <button id="recPause" disabled aria-label="Pause recording">❚❚</button>
+      <span class="break"></span>
+      <button class="tool active" data-t="pen" disabled aria-label="Pen">✎</button>
+      <button class="tool" data-t="arrow" disabled aria-label="Arrow">↗</button>
+      <button id="color" disabled aria-label="Colour"><i style="background:#ff3b30"></i></button>
+      <button id="undo" disabled aria-label="Undo">↶</button>
+      <button id="clear" disabled aria-label="Clear drawings">✕</button>
     </div>
   </div>
 </div>
 
-<div id="debug"></div>
+<div id="sheet">
+  <button class="close" id="sheetClose">Close</button>
+  <div id="banner" class="card">
+    <p id="bannerText"></p>
+    <button id="recover">Recover it</button>
+    <button id="dismiss">Discard</button>
+  </div>
+  <div id="result" class="card">
+    <p id="resultText"></p>
+    <progress id="progress" max="1" value="0"></progress>
+    <video id="preview" playsinline controls></video>
+    <button id="save">Save / Share video</button>
+    <button id="saveRaw" style="display:none">Share raw file</button>
+    <button id="discard">Delete recording</button>
+  </div>
+  <div id="info"></div>
+  <div id="debug"></div>
+</div>
 
 <script>
 (() => {
   'use strict';
-  const VERSION = 'PoC v2.1';
+  const VERSION = 'PoC v2.2';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = !params.has('nodebug');            // log shown by default during the PoC
   const COMPAT = !params.has('nocompat');           // behave like iOS 17 (no audio WebCodecs) — on by default
   const RENDER_FPS = Math.min(60, Math.max(15, +params.get('fps') || 30));
-  let maxSide = +params.get('max') || (() => { try { return +localStorage.getItem('sr-quality'); } catch (e) { return 0; } })() || 1920;
+  let maxSide = +params.get('max') || (() => { try { return +localStorage.getItem('sr-quality-v22'); } catch (e) { return 0; } })() || 1280;   // 720p by default: lighter on iPhone memory
   maxSide = Math.min(3840, Math.max(640, maxSide));
   const videoBps = () => Math.max(0.5, +params.get('mbps') || (maxSide <= 1280 ? 2.5 : 4)) * 1e6;
   const MB = 1048576;
 
-  $('ver').textContent = `Proof of concept v2.1${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
+  $('ver').textContent = `Proof of concept v2.2${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
 
   // ---------------------------------------------------------------- logging
   const logLines = [];
@@ -171,6 +169,10 @@
     }
   }
   if (DEBUG) $('debug').style.display = 'block';
+  const openSheet = () => { $('sheet').style.display = 'block'; };
+  const closeSheet = () => { $('sheet').style.display = 'none'; };
+  $('logBtn').onclick = () => $('sheet').style.display === 'block' ? closeSheet() : openSheet();
+  $('sheetClose').onclick = closeSheet;
   let persistTimer = null, prevLog = [];
   function schedulePersistLog(now) {
     if (persistTimer && !now) return;
@@ -258,7 +260,7 @@
   let chunkCount = 0, recBytes = 0, writeChain = Promise.resolve(), writeErrors = 0, stopRequested = false;
   let actions = [];
   let resultFile = null, resultUrl = null, rawBlob = null;
-  let flushTimer = null, lastDataAt = 0, maxGap = 0, stallWarned = false;
+  let flushTimer = null, lastDataAt = 0, maxGap = 0, stallWarned = false, emptyChunks = 0;
   let sessionId = null;
 
   const recElapsed = () => recState === 'idle' ? 0 :
@@ -295,7 +297,7 @@
     const size = view.width ? `${view.width}×${view.height}` : '–';
     $('info').textContent = `${VERSION} · format: ${pickType() || 'browser default'} · output: ${size} @${RENDER_FPS}fps · source ≈${fps}fps${extra ? ' · ' + extra : ''}`;
   }
-  const editControls = () => [...document.querySelectorAll('#side .panel button, #scrub')];
+  const editControls = () => [...document.querySelectorAll('#bar button, #scrub')];
   function enableEditing(on) {
     editControls().forEach(el => { if (el.id !== 'recPause') el.disabled = !on; });
     $('recPause').disabled = !(recState === 'recording' || recState === 'paused');
@@ -309,10 +311,13 @@
     if (recState !== 'idle') { alert('Stop the recording before loading another video.'); return; }
     if (video.src) URL.revokeObjectURL(video.src);
     log(`Loading ${f.name || 'video'} · ${mbs(f.size)} · ${f.type || 'unknown type'}`);
-    fpsSamples = []; fps = 30;
+    fpsSamples = []; fps = 30; fileLoadId++; frameValid = false;
     video.src = URL.createObjectURL(f);
     video.load();
   });
+  ['emptied', 'stalled', 'waiting', 'abort'].forEach(ev => video.addEventListener(ev, () => {
+    if (video.src) log(`Video event: ${ev} (readyState ${video.readyState}, t=${fmtT(video.currentTime)})`, ev === 'waiting' ? 'i' : 'w');
+  }));
   video.addEventListener('error', () => log(`Video element error: ${video.error && video.error.message || video.error && video.error.code}`, 'e'));
 
   function applySize() {
@@ -320,6 +325,7 @@
     if (!w || !h) return null;
     const s = Math.min(1, maxSide / Math.max(w, h));
     const ow = Math.round(w * s / 2) * 2, oh = Math.round(h * s / 2) * 2;   // even sizes for H.264
+    if (view.width === ow && view.height === oh && frame.width === ow) { fitStage(); return { w, h, ow, oh }; }
     const oldInk = ink.width ? { w: ink.width, h: ink.height } : null;
     view.width = ink.width = frame.width = ow;
     view.height = ink.height = frame.height = oh;
@@ -328,22 +334,44 @@
       strokes.forEach(st => { st.w = Math.max(3, st.w * k); st.pts = st.pts.map(p => [p[0] * k, p[1] * k]); });
     }
     redrawInk(); frameValid = false;
-    document.documentElement.style.setProperty('--ar', ow / oh);
-    document.documentElement.style.setProperty('--hshare', ow < oh ? '66dvh' : '56dvh');
+    fitStage();
     return { w, h, ow, oh };
   }
+  // The video area takes all the room left by the toolbar, keeping the video's proportions.
+  function fitStage() {
+    const wrap = $('stageWrap'), st = $('stage');
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const ar = view.width && view.height ? view.width / view.height : 16 / 9;
+    let w = W, h = W / ar;
+    if (h > H) { h = H; w = H * ar; }
+    st.style.width = Math.floor(w) + 'px'; st.style.height = Math.floor(h) + 'px';
+  }
+  if (window.ResizeObserver) new ResizeObserver(fitStage).observe($('stageWrap'));
+  window.addEventListener('resize', fitStage);
+  fitStage();
   $('quality').value = String(maxSide <= 1280 ? 1280 : 1920);
   $('quality').onchange = () => {
     if (recState !== 'idle') { $('quality').value = String(maxSide); return; }
     maxSide = +$('quality').value;
-    try { localStorage.setItem('sr-quality', String(maxSide)); } catch (e) {}
+    try { localStorage.setItem('sr-quality-v22', String(maxSide)); } catch (e) {}
     const r = applySize();
     log(`Quality set to ${maxSide <= 1280 ? '720p' : '1080p'}${r ? ` → output ${r.ow}×${r.oh}` : ''}`);
     setInfo();
   };
 
+  let fileLoadId = 0, setUpFor = -1, lastGoodTime = 0, wasPlaying = false, reloads = 0;
   video.addEventListener('loadedmetadata', () => {
     if (!video.videoWidth || !video.videoHeight) { log('Video has no picture size', 'e'); return; }
+    if (setUpFor === fileLoadId) {
+      // Same file, reloaded by Safari (it unloads big videos under memory pressure).
+      // Keep everything as it was: position, drawings, output size, recording.
+      reloads++;
+      log(`Safari reloaded the video (#${reloads}) → back to ${fmtT(lastGoodTime)}${wasPlaying ? ', resuming playback' : ''}`, 'w');
+      video.currentTime = lastGoodTime;
+      if (wasPlaying) video.play().catch(e => log('Could not resume playback: ' + errMsg(e), 'w'));
+      return;
+    }
+    setUpFor = fileLoadId; reloads = 0; lastGoodTime = 0; wasPlaying = false;
     strokes = [];
     const { w, h, ow, oh } = applySize();
     $('placeholder').style.display = 'none';
@@ -391,6 +419,8 @@
     if (video.readyState >= 2 && (!frameValid || video.currentTime !== lastFrameTime || !video.paused)) {
       fctx.drawImage(video, 0, 0, frame.width, frame.height);
       frameValid = true; lastFrameTime = video.currentTime;
+      if (video.currentTime > 0.01) lastGoodTime = video.currentTime;
+      wasPlaying = !video.paused;
     } else if (video.readyState < 2 && frameValid) {
       if (++blankFrames % 30 === 1) log(`Video frame not ready (readyState ${video.readyState}), keeping last frame`, 'w');
     }
@@ -398,15 +428,15 @@
     else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, view.width, view.height); }
     ctx.drawImage(ink, 0, 0);
     if (document.activeElement !== $('scrub')) $('scrub').value = video.currentTime;
-    $('time').textContent = `${fmtT(video.currentTime)} / ${fmtT(video.duration)}`;
+    $('time').textContent = `${fmtT(video.currentTime)} / ${fmtRec((video.duration || 0) * 1000)}`;
   }
   requestAnimationFrame(loop);
 
   // ---------------------------------------------------------------- playback
   $('play').onclick = () => video.paused ? video.play().catch(e => log('play() failed: ' + errMsg(e), 'w')) : video.pause();
-  video.addEventListener('play', () => { $('play').textContent = 'Pause'; act('play'); });
-  video.addEventListener('pause', () => { $('play').textContent = 'Play'; act('pause'); });
-  video.addEventListener('ended', () => { $('play').textContent = 'Play'; });
+  video.addEventListener('play', () => { $('play').textContent = '❚❚'; act('play'); });
+  video.addEventListener('pause', () => { $('play').textContent = '▶'; act('pause'); });
+  video.addEventListener('ended', () => { $('play').textContent = '▶'; });
 
   function step(dir) {
     video.pause();
@@ -418,11 +448,14 @@
   $('scrub').addEventListener('input', e => { video.currentTime = +e.target.value; });
   $('scrub').addEventListener('change', () => act('seek'));
 
-  document.querySelectorAll('.speed').forEach(b => b.onclick = () => {
-    video.playbackRate = video.defaultPlaybackRate = +b.dataset.v;
-    document.querySelectorAll('.speed').forEach(x => x.classList.toggle('active', x === b));
+  const SPEEDS = [1, 0.5, 0.25, 0.1];
+  $('speed').onclick = () => {
+    const next = SPEEDS[(SPEEDS.indexOf(video.playbackRate) + 1) % SPEEDS.length] || 1;
+    video.playbackRate = video.defaultPlaybackRate = next;
+    $('speed').textContent = next + '×';
+    $('speed').classList.toggle('active', next !== 1);
     act('rate');
-  });
+  };
 
   // ---------------------------------------------------------------- drawing
   function pos(e) {
@@ -484,10 +517,11 @@
     tool = b.dataset.t;
     document.querySelectorAll('.tool').forEach(x => x.classList.toggle('active', x === b));
   });
-  document.querySelectorAll('.swatch').forEach(b => b.onclick = () => {
-    color = b.dataset.c;
-    document.querySelectorAll('.swatch').forEach(x => x.classList.toggle('active', x === b));
-  });
+  const COLORS = ['#ff3b30', '#ffd60a', '#5ac8fa', '#ffffff'];
+  $('color').onclick = () => {
+    color = COLORS[(COLORS.indexOf(color) + 1) % COLORS.length];
+    $('color').querySelector('i').style.background = color;
+  };
   $('undo').onclick = () => { strokes.pop(); redrawInk(); act('undo'); };
   $('clear').onclick = () => { strokes = []; redrawInk(); act('clear'); };
 
@@ -522,7 +556,7 @@
       try { recorder.pause(); } catch (e) { log('pause() failed: ' + errMsg(e), 'w'); return; }
       recState = 'paused'; recPausedAt = performance.now();
       act('recPause');
-      $('recPause').textContent = 'Resume rec';
+      $('recPause').textContent = '⏺';
       $('recBadge').classList.add('paused');
     } else if (recState === 'paused') {
       try { recorder.resume(); } catch (e) { log('resume() failed: ' + errMsg(e), 'w'); return; }
@@ -530,7 +564,7 @@
       recState = 'recording';
       lastDataAt = performance.now();   // no data is expected while paused
       act('recResume');
-      $('recPause').textContent = 'Pause rec';
+      $('recPause').textContent = '❚❚';
       $('recBadge').classList.remove('paused');
     }
   };
@@ -580,12 +614,12 @@
     sessionId = Date.now().toString(36);
     chunkCount = 0; recBytes = 0; writeErrors = 0; writeChain = Promise.resolve(); stopRequested = false;
     actions = [];
-    lastDataAt = performance.now(); maxGap = 0; stallWarned = false;
+    lastDataAt = performance.now(); maxGap = 0; stallWarned = false; emptyChunks = 0;
     recorder.ondataavailable = e => {
       const nowT = performance.now();
+      if (!e.data || !e.data.size) { emptyChunks++; return; }     // empty data does not count as recording
       if (recState === 'recording') maxGap = Math.max(maxGap, nowT - lastDataAt);
       lastDataAt = nowT;
-      if (!e.data || !e.data.size) return;
       if (stallWarned) { stallWarned = false; $('stall').style.display = 'none'; log('Recording data is flowing again'); }
       const i = chunkCount++;
       const blob = e.data;
@@ -614,9 +648,9 @@
     keepAwake();
     saveMeta();
 
-    $('rec').textContent = '■ Stop recording';
+    $('rec').textContent = '■ STOP';
     $('rec').classList.add('recording');
-    $('recPause').disabled = false; $('recPause').textContent = 'Pause rec';
+    $('recPause').disabled = false; $('recPause').textContent = '❚❚';
     $('recBadge').style.display = 'block'; $('recBadge').classList.remove('paused');
     $('loadBtn').classList.add('disabled');
     $('quality').disabled = true;
@@ -626,14 +660,14 @@
     metaTimer = setInterval(async () => {
       saveMeta();
       const gap = performance.now() - lastDataAt;
-      if (recState === 'recording' && gap > 8000 && !stallWarned) {
+      if (recState === 'recording' && gap > 6000 && !stallWarned) {
         stallWarned = true;
         log(`No recording data for ${(gap / 1000).toFixed(0)} s (recorder: ${recorder && recorder.state})`, 'e');
         $('stall').textContent = '⚠︎ The phone stopped delivering the recording. Stop now to keep what was recorded, then send diagnostics.';
         $('stall').style.display = 'block';
       }
       const st2 = await storageInfo();
-      log(`rec ${fmtRec(recElapsed())} · ${chunkCount} chunks · ${mbs(recBytes)} · longest gap ${(maxGap / 1000).toFixed(1)} s · ${recorder && recorder.state} · ${st2.text}${writeErrors ? ' · write errors: ' + writeErrors : ''}`);
+      log(`rec ${fmtRec(recElapsed())} · ${chunkCount} chunks · ${mbs(recBytes)} · longest gap ${(maxGap / 1000).toFixed(1)} s · last data ${((performance.now() - lastDataAt) / 1000).toFixed(0)} s ago · empty ${emptyChunks} · ${recorder && recorder.state} · ${st2.text}${writeErrors ? ' · write errors: ' + writeErrors : ''}`);
       maxGap = 0;
     }, 5000);
   }
@@ -656,7 +690,7 @@
     $('stall').style.display = 'none';
     releaseAwake();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
-    $('rec').textContent = '● Start recording';
+    $('rec').textContent = '● REC';
     $('rec').classList.remove('recording');
     $('recBadge').style.display = 'none';
     $('recPause').disabled = true;
@@ -802,6 +836,7 @@
   function showResult(text) {
     $('resultText').textContent = text;
     $('result').style.display = 'block';
+    openSheet();
   }
   function hideResult() {
     $('result').style.display = 'none';
@@ -821,7 +856,7 @@
     $('save').disabled = false;
     $('saveRaw').style.display = (DEBUG && rawBlob && !isRaw) ? '' : 'none';
     $('result').style.display = 'block';
-    $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    openSheet();
     setInfo(`last file ${mbs(blob.size)}`);
   }
   function download(file, url) {
@@ -864,7 +899,7 @@
       if (!parts.length) return;
       $('bannerText').textContent = `Your last video (${fmtRec(session.durationMs || 0)}) is still saved on this phone.`;
       $('recover').textContent = 'Open it';
-      $('banner').style.display = 'block';
+      $('banner').style.display = 'block'; openSheet();
       $('recover').onclick = async () => {
         hideBanner();
         const blob = await assembleOutput(exp && exp.patches, 'video/mp4');
@@ -875,7 +910,7 @@
       if (!chunks.length) return;
       $('bannerText').textContent = `An unsaved recording was found (about ${fmtRec(session.durationMs || 0)}). It can be recovered.`;
       $('recover').textContent = 'Recover it';
-      $('banner').style.display = 'block';
+      $('banner').style.display = 'block'; openSheet();
       $('recover').onclick = () => { hideBanner(); log('Recovering previous recording'); finalizeFromStorage(); };
       log(`Found an unfinished recording: ${chunks.length} chunks`, 'w');
     }
