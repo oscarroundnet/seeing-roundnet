@@ -72,7 +72,7 @@
   <header>
     <div>
       <h1>Seeing Roundnet</h1>
-      <div class="sub" id="ver">Proof of concept v2.2</div>
+      <div class="sub" id="ver">Proof of concept v2.3</div>
     </div>
     <div class="hbtns">
       <select id="quality" aria-label="Recording quality"><option value="1280">720p</option><option value="1920">1080p</option></select>
@@ -126,7 +126,9 @@
     <p id="resultText"></p>
     <progress id="progress" max="1" value="0"></progress>
     <video id="preview" playsinline controls></video>
-    <button id="save">Save / Share video</button>
+    <button id="save">Share video</button>
+    <button id="saveFile">Save to Files</button>
+    <p class="hint" style="font-size:12px;color:var(--muted);margin:4px 0 8px">Very long videos: use “Save to Files”, then in the Files app open the video and choose Share → Save Video to put it in Photos.</p>
     <button id="saveRaw" style="display:none">Share raw file</button>
     <button id="discard">Delete recording</button>
   </div>
@@ -137,7 +139,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'PoC v2.2';
+  const VERSION = 'PoC v2.3';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = !params.has('nodebug');            // log shown by default during the PoC
@@ -148,7 +150,7 @@
   const videoBps = () => Math.max(0.5, +params.get('mbps') || (maxSide <= 1280 ? 2.5 : 4)) * 1e6;
   const MB = 1048576;
 
-  $('ver').textContent = `Proof of concept v2.2${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
+  $('ver').textContent = `Proof of concept v2.3${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
 
   // ---------------------------------------------------------------- logging
   const logLines = [];
@@ -700,6 +702,7 @@
     await writeChain;                      // wait for the last chunks to be on disk
     recState = 'idle';
     await saveMeta({ state: 'stopped', durationMs: Math.round(durationMs) });
+    setTimeout(() => setMeta('reclog', { lines: logLines.slice(-1500), at: new Date().toISOString() }).catch(() => {}), 0);
     log(`Recording finished: ${fmtRec(durationMs)} · ${chunkCount} chunks · ${mbs(recBytes)}${writeErrors ? ' · ' + writeErrors + ' chunk(s) not saved' : ''}`);
     if (unexpected) alert('The recording was interrupted. Everything recorded up to that point has been kept.');
     $('rec').disabled = false;
@@ -796,7 +799,7 @@
   async function finalizeFromStorage(durationMs) {
     showResult('Preparing video…');
     $('progress').style.display = ''; $('progress').value = 0;
-    $('save').disabled = true; $('saveRaw').style.display = 'none';
+    $('save').disabled = true; $('saveFile').disabled = true; $('saveRaw').style.display = 'none';
     const session = await getMeta('session').catch(() => null);
     const mime = (session && session.mime) || 'video/mp4';
     let records;
@@ -853,7 +856,7 @@
     $('progress').style.display = 'none';
     $('resultText').textContent = `Recording ready · ${durationMs ? fmtRec(durationMs) + ' · ' : ''}${mbs(blob.size)} · ${note}`;
     $('resultText').className = isRaw ? 'warn' : '';
-    $('save').disabled = false;
+    $('save').disabled = false; $('saveFile').disabled = false;
     $('saveRaw').style.display = (DEBUG && rawBlob && !isRaw) ? '' : 'none';
     $('result').style.display = 'block';
     openSheet();
@@ -865,14 +868,26 @@
     document.body.appendChild(a); a.click(); a.remove();
   }
   async function shareFile(file, url) {
+    log(`Share requested: ${file.name} · ${mbs(file.size)}`);
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      const t = performance.now();
       try { await navigator.share({ files: [file] }); log('Shared ' + file.name); return true; }
-      catch (e) { if (e.name === 'AbortError') { log('Share cancelled'); return false; } log('Share failed: ' + errMsg(e) + ' → download instead', 'w'); }
-    }
+      catch (e) {
+        log(`Share ended: ${e.name} · ${errMsg(e)} after ${((performance.now() - t) / 1000).toFixed(1)} s`, e.name === 'AbortError' ? 'w' : 'e');
+        if (e.name === 'AbortError') return false;
+      }
+    } else log('Share menu not available for this file', 'w');
+    log('Falling back to download');
     download(file, url);
     return true;
   }
   $('save').onclick = () => resultFile && shareFile(resultFile, resultUrl);
+  $('saveFile').onclick = () => {
+    if (!resultFile) return;
+    log(`Save to Files requested: ${resultFile.name} · ${mbs(resultFile.size)}`);
+    schedulePersistLog(true);
+    download(resultFile, resultUrl);
+  };
   $('saveRaw').onclick = () => {
     if (!rawBlob) return;
     const type = (rawBlob.type || 'video/mp4').split(';')[0];
@@ -947,6 +962,9 @@
       '',
       '--- Log (previous session, e.g. before a crash) ---',
       ...(prevLog.length ? prevLog : ['(none)']),
+      '',
+      '--- Log (last recording) ---',
+      ...(((await getMeta('reclog').catch(() => null)) || {}).lines || ['(none)']),
       '',
       '--- Action log (JSON) ---',
       JSON.stringify(actions)
