@@ -27,7 +27,8 @@
   #stage video, #stage canvas { position:absolute; inset:0; width:100%; height:100%; }
   #stage video { object-fit:fill; }
   #view { touch-action:none; }
-  #placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; text-align:center; padding:16px; pointer-events:none; }
+  #placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:15px; text-align:center; padding:16px; cursor:pointer; z-index:1; }
+  #zoomReset { position:absolute; top:8px; right:8px; z-index:2; display:none; min-height:34px; padding:4px 10px; font-size:13px; background:rgba(0,0,0,.65); }
   #recBadge { position:absolute; top:8px; left:8px; background:var(--accent); color:#fff; font-size:13px; font-weight:700; padding:3px 8px; border-radius:6px; display:none; pointer-events:none; font-variant-numeric:tabular-nums; z-index:2; }
   #recBadge.paused { background:var(--warn); color:#111; }
   #stall { position:absolute; left:8px; right:8px; top:40px; display:none; background:rgba(58,29,0,.95); color:var(--warn); border-radius:10px; padding:8px 10px; font-size:14px; z-index:3; }
@@ -72,7 +73,7 @@
   <header>
     <div>
       <h1>Seeing Roundnet</h1>
-      <div class="sub" id="ver">Proof of concept v2.3</div>
+      <div class="sub" id="ver">Proof of concept v2.4</div>
     </div>
     <div class="hbtns">
       <select id="quality" aria-label="Recording quality"><option value="1280">720p</option><option value="1920">1080p</option></select>
@@ -85,7 +86,8 @@
     <div id="stage">
       <video id="video" playsinline muted preload="auto"></video>
       <canvas id="view"></canvas>
-      <div id="placeholder">Tap 📂 to load a video</div>
+      <div id="placeholder">Tap here to load a video</div>
+      <button id="zoomReset" aria-label="Reset zoom">Zoom 1×</button>
       <div id="recBadge">● REC 00:00</div>
       <div id="stall"></div>
     </div>
@@ -111,6 +113,8 @@
       <button id="color" disabled aria-label="Colour"><i style="background:#ff3b30"></i></button>
       <button id="undo" disabled aria-label="Undo">↶</button>
       <button id="clear" disabled aria-label="Clear drawings">✕</button>
+      <span class="sep"></span>
+      <button id="exportBtn" disabled aria-label="Saved video">⬆︎ Video</button>
     </div>
   </div>
 </div>
@@ -139,7 +143,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'PoC v2.3';
+  const VERSION = 'PoC v2.4';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = !params.has('nodebug');            // log shown by default during the PoC
@@ -147,10 +151,10 @@
   const RENDER_FPS = Math.min(60, Math.max(15, +params.get('fps') || 30));
   let maxSide = +params.get('max') || (() => { try { return +localStorage.getItem('sr-quality-v22'); } catch (e) { return 0; } })() || 1280;   // 720p by default: lighter on iPhone memory
   maxSide = Math.min(3840, Math.max(640, maxSide));
-  const videoBps = () => Math.max(0.5, +params.get('mbps') || (maxSide <= 1280 ? 2.5 : 4)) * 1e6;
+  const videoBps = () => Math.max(0.5, +params.get('mbps') || (maxSide <= 1280 ? 3 : 6)) * 1e6;
   const MB = 1048576;
 
-  $('ver').textContent = `Proof of concept v2.3${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
+  $('ver').textContent = `Proof of concept v2.4${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
 
   // ---------------------------------------------------------------- logging
   const logLines = [];
@@ -262,7 +266,7 @@
   let chunkCount = 0, recBytes = 0, writeChain = Promise.resolve(), writeErrors = 0, stopRequested = false;
   let actions = [];
   let resultFile = null, resultUrl = null, rawBlob = null;
-  let flushTimer = null, lastDataAt = 0, maxGap = 0, stallWarned = false, emptyChunks = 0;
+  let flushTimer = null, lastDataAt = 0, maxGap = 0, stallWarned = false, emptyChunks = 0, videoPlayingAtRecPause = false;
   let sessionId = null;
 
   const recElapsed = () => recState === 'idle' ? 0 :
@@ -313,13 +317,14 @@
     if (recState !== 'idle') { alert('Stop the recording before loading another video.'); return; }
     if (video.src) URL.revokeObjectURL(video.src);
     log(`Loading ${f.name || 'video'} · ${mbs(f.size)} · ${f.type || 'unknown type'}`);
-    fpsSamples = []; fps = 30; fileLoadId++; frameValid = false;
+    fpsSamples = []; fps = 30; fpsMeasured = false; fileLoadId++; frameValid = false; resetZoom();
     video.src = URL.createObjectURL(f);
     video.load();
   });
   ['emptied', 'stalled', 'waiting', 'abort'].forEach(ev => video.addEventListener(ev, () => {
     if (video.src) log(`Video event: ${ev} (readyState ${video.readyState}, t=${fmtT(video.currentTime)})`, ev === 'waiting' ? 'i' : 'w');
   }));
+  $('placeholder').onclick = () => { if (recState === 'idle') $('file').click(); };
   video.addEventListener('error', () => log(`Video element error: ${video.error && video.error.message || video.error && video.error.code}`, 'e'));
 
   function applySize() {
@@ -335,7 +340,7 @@
       const k = ow / oldInk.w;
       strokes.forEach(st => { st.w = Math.max(3, st.w * k); st.pts = st.pts.map(p => [p[0] * k, p[1] * k]); });
     }
-    redrawInk(); frameValid = false;
+    redrawInk(); frameValid = false; resetZoom();
     fitStage();
     return { w, h, ow, oh };
   }
@@ -386,22 +391,34 @@
   });
 
   // estimate the source frame rate (for frame-by-frame steps)
+  // Frames can be skipped on screen but never invented, so the real frame interval is the
+  // smallest one we see reliably. We take the median of 30 consecutive clean samples and
+  // only ever move the estimate up (except for the very first measurement of a file).
+  let fpsMeasured = false;
   function trackFrames() {
     if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) return;
-    let last = null;
+    let last = null, lastFrames = 0;
+    const reset = () => { last = null; fpsSamples = []; };
+    ['seeking', 'ratechange', 'pause', 'play', 'emptied'].forEach(ev => video.addEventListener(ev, reset));
     const cb = (now, meta) => {
-      if (last !== null && !video.paused) {
-        const d = (meta.mediaTime - last) / Math.max(1, (meta.presentedFrames - (cb.lastFrames || 0)) || 1);
-        if (d > 0.002 && d < 0.2) {
+      if (last !== null && !video.paused && meta.presentedFrames - lastFrames === 1) {
+        const d = meta.mediaTime - last;
+        if (d > 0.003 && d < 0.2) {
           fpsSamples.push(d);
-          if (fpsSamples.length > 40) fpsSamples.shift();
-          const min = Math.min(...fpsSamples);
-          const est = Math.round(1 / min);
-          const snapped = [24, 25, 30, 48, 50, 60, 120, 240].reduce((a, b) => Math.abs(b - est) < Math.abs(a - est) ? b : a, 30);
-          if (snapped !== fps && fpsSamples.length >= 10) { fps = snapped; log(`Source frame rate ≈ ${fps} fps`); setInfo(); }
+          if (fpsSamples.length >= 30) {
+            const sorted = fpsSamples.slice().sort((a, b) => a - b);
+            const est = 1 / sorted[Math.floor(sorted.length / 2)];
+            const snapped = [24, 25, 30, 48, 50, 60, 120, 240].reduce((a, b) => Math.abs(b - est) < Math.abs(a - est) ? b : a, 30);
+            if (!fpsMeasured || snapped > fps) {
+              if (snapped !== fps) log(`Source frame rate ≈ ${snapped} fps`);
+              fps = snapped; fpsMeasured = true; setInfo();
+            }
+            fpsSamples = [];
+          }
         }
       }
-      last = meta.mediaTime; cb.lastFrames = meta.presentedFrames;
+      last = meta.mediaTime; lastFrames = meta.presentedFrames;
+      dirty = true;                                   // a new video frame is on screen: repaint
       video.requestVideoFrameCallback(cb);
     };
     video.requestVideoFrameCallback(cb);
@@ -409,30 +426,62 @@
   trackFrames();
 
   // ---------------------------------------------------------------- render loop
-  let lastDraw = 0;
+  // Zoom: Z maps the base picture (video + drawings) onto the canvas. Drawings live in base
+  // coordinates, so they stay stuck to the video when zooming. What you see is what is recorded.
+  const Z = { s: 1, x: 0, y: 0 };
+  function clampZoom() {
+    Z.s = Math.min(6, Math.max(1, Z.s));
+    Z.x = Math.min(0, Math.max(view.width - Z.s * view.width, Z.x));
+    Z.y = Math.min(0, Math.max(view.height - Z.s * view.height, Z.y));
+    $('zoomReset').style.display = Z.s > 1.01 ? 'block' : 'none';
+    $('zoomReset').textContent = `Zoom ${Z.s.toFixed(1)}× · reset`;
+    dirty = true;
+  }
+  function resetZoom() { Z.s = 1; Z.x = 0; Z.y = 0; clampZoom(); }
+  $('zoomReset').onclick = () => { resetZoom(); act('zoom', { s: 1 }); };
+
+  let lastDraw = 0, lastUi = 0, dirty = true, cacheAge = 0;
   const frameInterval = 1000 / RENDER_FPS;
+  function render() {
+    const W = view.width, H = view.height;
+    ctx.setTransform(Z.s, 0, 0, Z.s, Z.x, Z.y);
+    if (video.readyState >= 2) {
+      // Draw the video straight onto the canvas (one copy only). Keep a spare copy of the
+      // picture now and then, to show if Safari briefly has no frame ready (no black flashes).
+      ctx.drawImage(video, 0, 0, W, H);
+      if (!frameValid || (video.paused && video.currentTime !== lastFrameTime) || ++cacheAge >= 15) {
+        fctx.drawImage(video, 0, 0, W, H); cacheAge = 0;
+        frameValid = true; lastFrameTime = video.currentTime;
+      }
+      if (video.currentTime > 0.01) lastGoodTime = video.currentTime;
+      wasPlaying = !video.paused;
+    } else if (frameValid) {
+      ctx.drawImage(frame, 0, 0);
+      if (++blankFrames % 30 === 1) log(`Video frame not ready (readyState ${video.readyState}), keeping last frame`, 'w');
+    } else {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+      ctx.setTransform(Z.s, 0, 0, Z.s, Z.x, Z.y);
+    }
+    ctx.drawImage(ink, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
   function loop(now) {
     requestAnimationFrame(loop);
     if (!view.width) return;
-    if (now - lastDraw < frameInterval - 3) return;
-    lastDraw = now;
-    // Only grab a new picture from the video when it has one ready and the time has moved;
-    // otherwise keep showing the last good frame (no black flashes).
-    if (video.readyState >= 2 && (!frameValid || video.currentTime !== lastFrameTime || !video.paused)) {
-      fctx.drawImage(video, 0, 0, frame.width, frame.height);
-      frameValid = true; lastFrameTime = video.currentTime;
-      if (video.currentTime > 0.01) lastGoodTime = video.currentTime;
-      wasPlaying = !video.paused;
-    } else if (video.readyState < 2 && frameValid) {
-      if (++blankFrames % 30 === 1) log(`Video frame not ready (readyState ${video.readyState}), keeping last frame`, 'w');
+    const playing = !video.paused;
+    // Repaint when something changed (new video frame, drawing, zoom), at most RENDER_FPS
+    // times a second; when nothing moves, a slow 10 fps keeps the recording alive.
+    const due = dirty ? now - lastDraw >= frameInterval - 3 : now - lastDraw >= (playing ? frameInterval : 100) - 3;
+    if (due) { render(); dirty = false; lastDraw = now; }
+    if (now - lastUi > 100) {
+      lastUi = now;
+      if (document.activeElement !== $('scrub')) $('scrub').value = video.currentTime;
+      $('time').textContent = `${fmtT(video.currentTime)} / ${fmtRec((video.duration || 0) * 1000)}`;
     }
-    if (frameValid) ctx.drawImage(frame, 0, 0);
-    else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, view.width, view.height); }
-    ctx.drawImage(ink, 0, 0);
-    if (document.activeElement !== $('scrub')) $('scrub').value = video.currentTime;
-    $('time').textContent = `${fmtT(video.currentTime)} / ${fmtRec((video.duration || 0) * 1000)}`;
   }
   requestAnimationFrame(loop);
+  ['seeked', 'loadeddata'].forEach(ev => video.addEventListener(ev, () => { dirty = true; }));
 
   // ---------------------------------------------------------------- playback
   $('play').onclick = () => video.paused ? video.play().catch(e => log('play() failed: ' + errMsg(e), 'w')) : video.pause();
@@ -445,8 +494,19 @@
     video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + dir / fps));
     act('step', { dir });
   }
-  $('back').onclick = () => step(-1);
-  $('fwd').onclick = () => step(1);
+  // Tap = one frame; hold = keeps stepping.
+  function holdToRepeat(btn, dir) {
+    let t1 = null, t2 = null;
+    const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
+    btn.addEventListener('pointerdown', e => {
+      if (btn.disabled) return;
+      e.preventDefault(); step(dir);
+      t1 = setTimeout(() => { t2 = setInterval(() => step(dir), 80); }, 350);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+  }
+  holdToRepeat($('back'), -1);
+  holdToRepeat($('fwd'), 1);
   $('scrub').addEventListener('input', e => { video.currentTime = +e.target.value; });
   $('scrub').addEventListener('change', () => act('seek'));
 
@@ -460,9 +520,13 @@
   };
 
   // ---------------------------------------------------------------- drawing
-  function pos(e) {
+  function canvasPos(e) {
     const r = view.getBoundingClientRect();
-    return [Math.round((e.clientX - r.left) * view.width / r.width), Math.round((e.clientY - r.top) * view.height / r.height)];
+    return [(e.clientX - r.left) * view.width / r.width, (e.clientY - r.top) * view.height / r.height];
+  }
+  function pos(e) {                                   // canvas point → base (unzoomed) point
+    const [cx, cy] = canvasPos(e);
+    return [Math.round((cx - Z.x) / Z.s), Math.round((cy - Z.y) / Z.s)];
   }
   function drawStroke(s, c) {
     c.strokeStyle = s.color; c.fillStyle = s.color;
@@ -485,18 +549,40 @@
     c.stroke();
   }
   function redrawInk() {
+    dirty = true;
     ictx.clearRect(0, 0, ink.width, ink.height);
     strokes.forEach(s => drawStroke(s, ictx));
     if (current) drawStroke(current, ictx);
   }
+  const pointers = new Map();
+  let pinch = null;
   view.addEventListener('pointerdown', e => {
-    if (!view.width) return;
+    if (!view.width || !video.src) return;
     e.preventDefault();
     try { view.setPointerCapture(e.pointerId); } catch (err) {}
+    pointers.set(e.pointerId, canvasPos(e));
+    if (pointers.size === 2) {                         // second finger: zoom / pan, cancel the stroke
+      current = null; redrawInk();
+      const [a, b] = [...pointers.values()];
+      const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      pinch = { d0: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, s0: Z.s, base: [(mid[0] - Z.x) / Z.s, (mid[1] - Z.y) / Z.s] };
+      return;
+    }
+    if (pointers.size > 2 || pinch) return;
     current = { tool, color, w: Math.max(3, Math.round(Math.max(view.width, view.height) / 320)), pts: [pos(e)] };
     redrawInk();
   });
   view.addEventListener('pointermove', e => {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, canvasPos(e));
+    if (pinch && pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      Z.s = pinch.s0 * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d0;
+      Z.s = Math.min(6, Math.max(1, Z.s));
+      Z.x = mid[0] - pinch.base[0] * Z.s; Z.y = mid[1] - pinch.base[1] * Z.s;
+      clampZoom();
+      return;
+    }
     if (!current) return;
     const p = pos(e);
     if (current.tool === 'arrow') { current.pts[1] = p; redrawInk(); return; }
@@ -512,8 +598,29 @@
     current = null;
     redrawInk();
   }
-  view.addEventListener('pointerup', endStroke);
-  view.addEventListener('pointercancel', endStroke);
+  function pointerEnd(e) {
+    pointers.delete(e.pointerId);
+    if (pinch) {
+      if (pointers.size < 2) { act('zoom', { s: +Z.s.toFixed(2) }); }
+      if (pointers.size === 0) pinch = null;
+      return;
+    }
+    endStroke();
+  }
+  view.addEventListener('pointerup', pointerEnd);
+  view.addEventListener('pointercancel', pointerEnd);
+  // Laptop: pinch on the trackpad (or Ctrl + wheel) zooms at the cursor; scrolling pans when zoomed.
+  view.addEventListener('wheel', e => {
+    if (!video.src) return;
+    e.preventDefault();
+    const [cx, cy] = canvasPos(e);
+    if (e.ctrlKey) {
+      const base = [(cx - Z.x) / Z.s, (cy - Z.y) / Z.s];
+      Z.s = Math.min(6, Math.max(1, Z.s * Math.exp(-e.deltaY * 0.01)));
+      Z.x = cx - base[0] * Z.s; Z.y = cy - base[1] * Z.s;
+    } else { Z.x -= e.deltaX; Z.y -= e.deltaY; }
+    clampZoom();
+  }, { passive: false });
 
   document.querySelectorAll('.tool').forEach(b => b.onclick = () => {
     tool = b.dataset.t;
@@ -526,6 +633,15 @@
   };
   $('undo').onclick = () => { strokes.pop(); redrawInk(); act('undo'); };
   $('clear').onclick = () => { strokes = []; redrawInk(); act('clear'); };
+
+  // ---------------------------------------------------------------- keyboard (laptop)
+  document.addEventListener('keydown', e => {
+    if (!video.src || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.id !== 'scrub') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('undo').click(); }
+    else if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); $('play').click(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+  });
 
   // ---------------------------------------------------------------- screen wake lock
   async function keepAwake() {
@@ -557,6 +673,8 @@
     if (recState === 'recording') {
       try { recorder.pause(); } catch (e) { log('pause() failed: ' + errMsg(e), 'w'); return; }
       recState = 'paused'; recPausedAt = performance.now();
+      videoPlayingAtRecPause = !video.paused;
+      if (videoPlayingAtRecPause) video.pause();             // Scott: pausing the recording pauses the video too
       act('recPause');
       $('recPause').textContent = '⏺';
       $('recBadge').classList.add('paused');
@@ -566,6 +684,7 @@
       recState = 'recording';
       lastDataAt = performance.now();   // no data is expected while paused
       act('recResume');
+      if (videoPlayingAtRecPause) video.play().catch(() => {});   // and resuming plays it again
       $('recPause').textContent = '❚❚';
       $('recBadge').classList.remove('paused');
     }
@@ -848,6 +967,7 @@
     $('preview').removeAttribute('src'); $('preview').load();
   }
   function setResultFile(blob, durationMs, note, isRaw) {
+    $('exportBtn').disabled = false;
     if (resultUrl) URL.revokeObjectURL(resultUrl);
     resultUrl = URL.createObjectURL(blob);
     const type = (blob.type || 'video/mp4').split(';')[0];
@@ -882,6 +1002,7 @@
     return true;
   }
   $('save').onclick = () => resultFile && shareFile(resultFile, resultUrl);
+  $('exportBtn').onclick = () => { if (resultFile) { $('result').style.display = 'block'; openSheet(); } };
   $('saveFile').onclick = () => {
     if (!resultFile) return;
     log(`Save to Files requested: ${resultFile.name} · ${mbs(resultFile.size)}`);
