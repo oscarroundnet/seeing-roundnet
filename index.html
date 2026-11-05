@@ -329,7 +329,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 2';
+  const VERSION = 'v1.0 build 3';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -497,7 +497,7 @@
   const ink = document.createElement('canvas'), ictx = ink.getContext('2d');
   const frame = document.createElement('canvas'), fctx = frame.getContext('2d');   // last good video frame
   let frameValid = false, lastFrameTime = -1, blankFrames = 0;
-  let strokes = [], current = null, pendingAngle = null, textPending = null;
+  let strokes = [], current = null, pendingAngle = null, textPending = null, runningTimer = null;
   let tool = prefs.tool || 'pen', color = prefs.color || '#FF3B30', sizeK = prefs.sizeK || 1;
   let fps = 30, fpsSamples = [];
   let recorder = null, micStream = null, wakeLock = null;
@@ -814,7 +814,7 @@
   const TOOL_HINTS = {
     angle: 'Angle: draw the first line from the joint, then the second one',
     text: 'Tap where the note goes',
-    timer: 'Tap to place a timer: it counts from this frame',
+    timer: 'Timer: tap once to start it at this frame, tap again to stop it',
     circle: 'Drag to draw a circle around a player'
   };
   function selectTool(t, quiet) {
@@ -867,7 +867,7 @@
     c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath();
   }
   // A label on a dark rounded box (light box for black text), so it reads on any background.
-  function drawLabel(c, text, x, y, fs, col, align) {
+  function drawLabel(c, text, x, y, fs, col, align, outline) {
     c.save();
     c.font = `700 ${Math.round(fs)}px Montserrat, -apple-system, system-ui, sans-serif`;
     c.textBaseline = 'middle';
@@ -875,6 +875,7 @@
     const bx = align === 'center' ? x - w / 2 - padX : x - padX, by = y - h / 2;
     c.fillStyle = col === '#000000' ? 'rgba(255,255,255,0.88)' : 'rgba(5,17,23,0.8)';
     roundRect(c, bx, by, w + padX * 2, h, Math.min(h / 3, fs * 0.35)); c.fill();
+    if (outline) { c.strokeStyle = outline; c.lineWidth = Math.max(2, fs * 0.12); c.stroke(); }
     c.fillStyle = col;
     c.textAlign = 'left';
     c.fillText(text, bx + padX, y + fs * 0.04);
@@ -901,9 +902,10 @@
     drawLabel(c, `${Math.round(deg)}°`, V[0] + Math.cos(mid) * lr, V[1] + Math.sin(mid) * lr, s.fs, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
   }
   function drawTimer(s, c) {
-    const dt = video.currentTime - s.t0;
+    const stopped = s.t1 != null;
+    const dt = (stopped ? s.t1 : video.currentTime) - s.t0;
     const txt = `${dt < 0 ? '−' : ''}${Math.abs(dt).toFixed(2)} s`;
-    drawLabel(c, txt, s.pts[0][0], s.pts[0][1], s.fs, s.color, 'center');
+    drawLabel(c, txt, s.pts[0][0], s.pts[0][1], s.fs, s.color, 'center', stopped ? '#1484C4' : null);
   }
   function drawStroke(s, c) {
     c.save();
@@ -1019,7 +1021,17 @@
     const minLen = Math.max(8, baseW() * 2);
     if (s.tap) {
       delete s.tap;
-      if (s.tool === 'timer') { s.t0 = +video.currentTime.toFixed(3); strokes.push(s); logShape(s); redrawInk(); }
+      if (s.tool === 'timer') {
+        // One tap starts a timer at this frame, the next tap stops it (its value then stays fixed).
+        if (runningTimer && strokes.includes(runningTimer)) {
+          runningTimer.t1 = +video.currentTime.toFixed(3);
+          act('timerStop', { t0: runningTimer.t0, t1: runningTimer.t1 });
+          hint(`Timer stopped: ${(runningTimer.t1 - runningTimer.t0).toFixed(2)} s`, 2000);
+          runningTimer = null; redrawInk(); return;
+        }
+        s.t0 = +video.currentTime.toFixed(3); strokes.push(s); runningTimer = s; logShape(s); redrawInk();
+        hint(video.paused ? 'Timer started: play the video or step frames, then tap again to stop it' : 'Timer started: tap again to stop it', 3000);
+      }
       else openTextBox(s);
       return;
     }
@@ -1093,10 +1105,11 @@
   $('undo').onclick = () => {
     if (textPending) { $('textBox').value = ''; commitText(); return; }
     const s = strokes.pop();
+    if (s && s === runningTimer) runningTimer = null;
     if (s && s === pendingAngle) pendingAngle = null;
     redrawInk(); act('undo');
   };
-  $('clear').onclick = () => { if (textPending) { $('textBox').value = ''; commitText(); } strokes = []; pendingAngle = null; redrawInk(); act('clear'); };
+  $('clear').onclick = () => { if (textPending) { $('textBox').value = ''; commitText(); } strokes = []; pendingAngle = null; runningTimer = null; redrawInk(); act('clear'); };
 
   // ---------------------------------------------------------------- bookmarks
   // A bookmark = a moment of the video + tags + an optional note. Saved on the device for this
@@ -1627,7 +1640,10 @@
         log(`Share ended: ${e.name} · ${errMsg(e)} after ${((performance.now() - t) / 1000).toFixed(1)} s`, e.name === 'AbortError' ? 'w' : 'e');
         if (e.name === 'AbortError') return false;
       }
-    } else log('Share menu not available for this file', 'w');
+    } else {
+      log(`Share menu not available for this file (share: ${!!navigator.share}, canShare: ${!!navigator.canShare}, ${mbs(file.size)})`, 'w');
+      alert('This browser cannot open the share menu for a video, so it was saved to your downloads instead.\n\nTo share it directly (WhatsApp, Photos…), open the app in Safari on iPhone or Chrome on Android.');
+    }
     log('Falling back to download');
     download(file, url);
     return true;
