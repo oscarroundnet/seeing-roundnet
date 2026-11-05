@@ -5,80 +5,203 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Seeing Roundnet">
-<meta name="theme-color" content="#111111">
-<title>Seeing Roundnet – PoC</title>
+<meta name="theme-color" content="#051117">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+<title>Seeing Roundnet</title>
 <style>
-  :root { --bg:#111; --panel:#1c1c1c; --fg:#f2f2f2; --muted:#9a9a9a; --btn:#2b2b2b; --accent:#ff3b30; --ok:#30d158; --warn:#ffd60a; }
+  :root { --bg:#051117; --panel:#0B212D; --panel2:#071820; --line:#225570; --fg:#E3E3E3; --muted:#8FA6B2; --soft:#A9BCC6;
+          --accent:#1484C4; --azure:#225570; --rec:#FF3B30; --ok:#30d158; --warn:#ffd60a; --side:124px; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg); font-family:-apple-system, system-ui, Segoe UI, Roboto, sans-serif; -webkit-user-select:none; user-select:none; }
-  #app { position:fixed; inset:0; display:grid; grid-template-columns:1fr; grid-template-rows:auto 1fr auto;
-         grid-template-areas:"head" "stage" "bar";
+  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
+               font-family:Montserrat, -apple-system, system-ui, sans-serif; -webkit-user-select:none; user-select:none; }
+  [hidden] { display:none !important; }
+  button, select { font-family:inherit; color:var(--fg); background:var(--panel); border:0; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.35; cursor:default; }
+  svg { display:block; }
+  .ib { width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; padding:0; flex:0 0 auto; }
+  .ghost { background:transparent; }
+  .fb { width:44px; height:44px; border-radius:22px; background:rgba(5,17,23,.74); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+        display:inline-flex; align-items:center; justify-content:center; padding:0; flex:0 0 auto; font-size:12px; font-weight:700; }
+  .on { background:var(--accent) !important; color:#fff !important; }
+
+  /* ---------- home */
+  #home { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:24px;
+          padding:calc(40px + env(safe-area-inset-top)) 28px calc(24px + env(safe-area-inset-bottom));
+          background:#031118; overflow:auto; }
+  #logo { width:min(380px, 92vw, 46vh); aspect-ratio:1; object-fit:cover; flex:0 0 auto; margin-top:-12px;
+          -webkit-mask-image:radial-gradient(circle at center, #000 48%, transparent 71%); mask-image:radial-gradient(circle at center, #000 48%, transparent 71%); }
+  .homeMain { width:100%; max-width:380px; display:flex; flex-direction:column; gap:32px; }
+  .tagline { text-align:center; }
+  .tagline .h { margin:0 0 8px; font-size:22px; font-weight:700; letter-spacing:.01em; }
+  .tagline .s { margin:0 auto; max-width:290px; font-size:14px; line-height:1.5; color:var(--soft); font-weight:500; }
+  .actions { display:flex; flex-direction:column; gap:12px; }
+  .primary { height:56px; border-radius:14px; background:var(--accent); color:#fff; font-size:17px; font-weight:700;
+             display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; }
+  .secondary { height:52px; border:1px solid var(--azure); border-radius:14px; background:rgba(11,33,45,.88); font-size:15px;
+               display:flex; align-items:center; justify-content:center; gap:10px; }
+  .foot { margin:4px 0 0; text-align:center; font-size:12px; color:var(--muted); font-weight:500; }
+  .link { background:none; padding:0; font-size:12px; color:var(--accent); font-weight:600; text-decoration:underline; }
+  @media (orientation:landscape) and (max-height:560px) {
+    #home { flex-direction:row; justify-content:center; gap:40px; padding:calc(16px + env(safe-area-inset-top)) calc(28px + env(safe-area-inset-right)) 16px calc(28px + env(safe-area-inset-left)); }
+    #logo { width:min(320px, 80vh); margin-top:0; }
+    .homeMain { gap:20px; }
+  }
+
+  /* ---------- analysis screen */
+  #app { position:fixed; inset:0; display:grid; grid-template-columns:1fr; grid-template-rows:auto 1fr auto; grid-template-areas:"head" "stage" "bar";
          padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-  header { grid-area:head; display:flex; align-items:center; justify-content:space-between; gap:6px; padding:4px 10px; }
-  header h1 { font-size:14px; margin:0; white-space:nowrap; }
-  header .sub { font-size:10px; color:var(--muted); white-space:nowrap; }
-  header .hbtns { display:flex; gap:6px; align-items:center; flex:0 0 auto; }
-  @media (max-width:420px) { header .sub { display:none; } }
-  header button, header select { min-height:30px; padding:4px 8px; font-size:12px; border-radius:8px; }
+  header { grid-area:head; height:48px; display:flex; align-items:center; justify-content:space-between; padding:0 4px; }
+  .brand { display:flex; align-items:baseline; gap:6px; }
+  .brand b { font-size:18px; letter-spacing:.06em; }
+  .brand span { font-size:10px; font-weight:600; letter-spacing:.22em; color:var(--soft); }
+  .hbtns { display:flex; gap:2px; }
   #stageWrap { grid-area:stage; position:relative; min-height:0; min-width:0; display:flex; align-items:center; justify-content:center; background:#000; overflow:hidden; }
   #stage { position:relative; background:#000; }
   #stage video, #stage canvas { position:absolute; inset:0; width:100%; height:100%; }
   #stage video { object-fit:fill; }
   #view { touch-action:none; }
-  #placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:15px; text-align:center; padding:16px; cursor:pointer; z-index:1; }
-  #zoomReset { position:absolute; top:8px; right:8px; z-index:2; display:none; min-height:34px; padding:4px 10px; font-size:13px; background:rgba(0,0,0,.65); }
-  #recBadge { position:absolute; top:8px; left:8px; background:var(--accent); color:#fff; font-size:13px; font-weight:700; padding:3px 8px; border-radius:6px; display:none; pointer-events:none; font-variant-numeric:tabular-nums; z-index:2; }
+  #textBox { position:absolute; z-index:3; width:min(240px, 80%); font:700 16px Montserrat, sans-serif; padding:7px 10px; border-radius:8px;
+             border:2px solid var(--accent); background:rgba(5,17,23,.92); color:#fff; outline:none; -webkit-user-select:text; user-select:text; }
+  #recBadge { position:absolute; top:10px; left:50%; transform:translateX(-50%); background:var(--rec); color:#fff; font-size:13px; font-weight:700;
+              padding:4px 10px; border-radius:8px; display:none; pointer-events:none; font-variant-numeric:tabular-nums; z-index:4; white-space:nowrap; }
   #recBadge.paused { background:var(--warn); color:#111; }
-  #stall { position:absolute; left:8px; right:8px; top:40px; display:none; background:rgba(58,29,0,.95); color:var(--warn); border-radius:10px; padding:8px 10px; font-size:14px; z-index:3; }
-  #bar { grid-area:bar; padding:6px 8px 8px; background:#151515; border-top:1px solid #262626; }
-  .row { display:flex; gap:8px; align-items:center; }
-  #scrub { flex:1; min-width:80px; accent-color:var(--accent); height:28px; }
-  #time { font-variant-numeric:tabular-nums; font-size:12px; color:var(--muted); white-space:nowrap; }
-  .tools { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin-top:6px; }
-  .break { flex-basis:100%; height:0; }
-  .sep { width:1px; align-self:stretch; background:#333; margin:0 2px; flex:0 0 1px; }
-  button, .filebtn, select { background:var(--btn); color:var(--fg); border:0; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
-  .tools button, .tools .filebtn { flex:0 0 auto; min-width:42px; height:42px; padding:0 10px; display:inline-flex; align-items:center; justify-content:center; }
-  button:disabled { opacity:.35; }
-  button.active { background:#fff; color:#111; }
-  .filebtn input { display:none; }
-  .filebtn.disabled { opacity:.35; pointer-events:none; }
-  #color i { display:inline-block; width:20px; height:20px; border-radius:50%; border:2px solid rgba(255,255,255,.6); }
-  #rec { background:var(--accent); color:#fff; min-width:64px; }
-  #rec.recording { background:#fff; color:var(--accent); }
-  #sheet { position:fixed; left:0; right:0; bottom:0; max-height:72dvh; overflow-y:auto; background:var(--panel); border-radius:16px 16px 0 0; box-shadow:0 -8px 30px rgba(0,0,0,.6); padding:10px 14px calc(14px + env(safe-area-inset-bottom)); display:none; z-index:10; -webkit-user-select:text; user-select:text; }
-  #sheet .close { position:sticky; top:0; float:right; min-height:34px; padding:4px 12px; font-size:14px; z-index:1; }
-  .card { margin:6px 0 10px; display:none; }
+  #stall { position:absolute; left:64px; right:64px; top:48px; display:none; background:rgba(58,29,0,.95); color:var(--warn); border-radius:10px; padding:8px 10px; font-size:14px; z-index:4; }
+  #hint { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); max-width:calc(100% - 24px); background:rgba(5,17,23,.88); border:1px solid var(--line);
+          padding:8px 12px; border-radius:10px; font-size:13px; font-weight:600; z-index:4; pointer-events:none; text-align:center; }
+
+  .rail { position:absolute; z-index:5; display:flex; flex-direction:column; gap:10px; top:calc(env(safe-area-inset-top) + 58px); }
+  #tools { right:calc(env(safe-area-inset-right) + 10px); align-items:flex-end; }
+  #leftRail { left:calc(env(safe-area-inset-left) + 10px); align-items:flex-start; }
+  .grp { display:flex; flex-direction:row-reverse; align-items:center; gap:8px; }
+  .opts { display:none; gap:2px; padding:3px; border-radius:24px; background:rgba(5,17,23,.9); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+  .grp.open .opts { display:flex; }
+  .opts .fb { width:40px; height:40px; background:transparent; }
+  .tactions { display:flex; flex-direction:column; gap:10px; }
+  .sw { display:block; width:22px; height:22px; border-radius:50%; border:2px solid rgba(255,255,255,.85); }
+  .dot { display:block; border-radius:50%; background:currentColor; }
+  #app.bare #tools { display:none; }
+  body.lefty #tools { right:auto; left:calc(env(safe-area-inset-left) + 10px); align-items:flex-start; }
+  body.lefty .grp { flex-direction:row; }
+  body.lefty #leftRail { left:auto; right:calc(env(safe-area-inset-right) + 10px); align-items:flex-end; }
+
+  #bar { grid-area:bar; padding:6px 12px 10px; display:flex; flex-direction:column; gap:6px; }
+  .srow { display:flex; align-items:center; gap:10px; }
+  .srow span { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:62px; }
+  #tDur { text-align:right; }
+  #scrubWrap { flex:1; min-width:60px; position:relative; display:flex; align-items:center; }
+  #scrub { flex:1; width:100%; accent-color:var(--accent); height:28px; margin:0; }
+  #bmMarks { position:absolute; left:8px; right:8px; top:0; bottom:0; pointer-events:none; }
+  #bmMarks i { position:absolute; top:2px; width:3px; height:8px; border-radius:2px; transform:translateX(-1px); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
+  .chip { min-height:34px !important; padding:4px 12px !important; margin:0 !important; border-radius:17px !important; border:1px solid var(--azure); background:var(--bg) !important; font-size:13px !important; display:inline-flex; align-items:center; gap:6px; }
+  .chip i { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .chip.sel { background:var(--azure) !important; border-color:var(--accent); color:#fff; }
+  .newtag { display:flex; gap:6px; margin-bottom:10px; }
+  .newtag input, #bmNote { flex:1; min-height:38px; border-radius:10px; border:1px solid var(--azure); background:var(--bg); color:var(--fg); font:500 14px Montserrat, sans-serif; padding:6px 10px; }
+  #bmNote { width:100%; min-height:64px; resize:vertical; margin-bottom:10px; box-sizing:border-box; }
+  .bmItem { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid #12303f; }
+  .bmItem .bmT { min-width:84px; font-variant-numeric:tabular-nums; }
+  .bmItem .bmBody { flex:1; font-size:13px; }
+  .bmItem .bmBody p { margin:4px 0 0; color:var(--soft); font-size:13px; }
+  .bmItem .chips { margin:0; }
+  .bmItem .chip { min-height:24px !important; padding:2px 9px !important; font-size:12px !important; }
+  #bmEmpty { color:var(--muted); font-size:13px; }
+  .crow { display:flex; align-items:center; gap:6px; }
+  .crow .ib { width:40px; }
+  #speed { min-width:58px !important; padding:0 8px !important; }
+  .spacer { flex:1; }
+  #play { background:var(--fg); color:var(--bg); }
+  #speedWrap { position:relative; }
+  #speed { height:44px; padding:0 12px; color:#4FB3E8; font-weight:700; min-width:64px; }
+  #speedMenu { position:absolute; bottom:52px; left:0; display:none; flex-direction:column; gap:2px; padding:4px; background:var(--panel);
+               border:1px solid var(--line); border-radius:12px; z-index:8; }
+  #speedMenu.open { display:flex; }
+  #speedMenu button { height:40px; min-width:76px; background:transparent; font-size:14px; }
+  #rec { width:52px; height:52px; border-radius:50%; border:3px solid var(--fg); background:transparent; display:flex; align-items:center; justify-content:center; padding:0; }
+  #rec i { display:block; width:26px; height:26px; border-radius:50%; background:var(--rec); transition:all .15s; }
+  #rec.recording i { width:18px; height:18px; border-radius:4px; }
+
+  @media (orientation:landscape) and (max-height:560px) {
+    #app { grid-template-columns:1fr var(--side); grid-template-rows:auto 1fr auto; grid-template-areas:"stage head" "stage tools" "bar tools"; }
+    body.lefty #app { grid-template-columns:var(--side) 1fr; grid-template-areas:"head stage" "tools stage" "tools bar"; }
+    header { height:auto; padding:4px 4px 0; background:var(--panel2); }
+    .brand { display:none; }
+    .hbtns { gap:0; }
+    #tools, body.lefty #tools { grid-area:tools; position:static; background:var(--panel2); padding:6px 8px 8px; overflow-y:auto; align-items:center; gap:10px; }
+    #app.bare #tools { display:flex; }
+    #hideBtn { display:none; }
+    #tools .grp, body.lefty #tools .grp { flex-direction:column; }
+    #tools .cur { display:none; }
+    #tools .opts { display:grid; grid-template-columns:repeat(3, 34px); gap:5px; background:none; padding:0; border-radius:0; -webkit-backdrop-filter:none; backdrop-filter:none; }
+    #tools .opts .fb { width:34px; height:38px; border-radius:10px; background:var(--panel); }
+    #tools #gColor .opts, #tools #gSize .opts { grid-template-columns:repeat(3, 28px); gap:6px 10px; }
+    #tools #gColor .opts .fb, #tools #gSize .opts .fb { width:28px; height:28px; border-radius:14px; }
+    #tools .sw { width:20px; height:20px; }
+    .tactions { flex-direction:row; gap:6px; }
+    .tactions .fb { width:52px; height:36px; border-radius:10px; background:var(--panel); }
+    .rail { top:calc(env(safe-area-inset-top) + 10px); }
+    body.lefty #leftRail { right:calc(env(safe-area-inset-right) + 10px); }
+    #bar { padding:4px 10px 6px; gap:2px; }
+    #stall { left:12px; right:12px; }
+  }
+
+  /* ---------- sheet (results, settings, log) */
+  #updateBar { position:fixed; left:50%; transform:translateX(-50%); top:calc(8px + env(safe-area-inset-top)); z-index:20; display:none; align-items:center; gap:10px;
+               background:var(--accent); color:#fff; border-radius:12px; padding:8px 10px 8px 14px; font-size:14px; font-weight:700; box-shadow:0 6px 20px rgba(0,0,0,.5); white-space:nowrap; }
+  #updateBar button { background:var(--bg); color:var(--fg); min-height:32px; padding:4px 12px; font-size:14px; }
+  #sheet { position:fixed; left:0; right:0; bottom:0; max-height:78dvh; overflow-y:auto; background:var(--panel); border-top:1px solid var(--line); border-radius:16px 16px 0 0;
+           box-shadow:0 -8px 30px rgba(0,0,0,.6); padding:10px 16px calc(16px + env(safe-area-inset-bottom)); display:none; z-index:10; -webkit-user-select:text; user-select:text; }
+  @media (min-width:700px) { #sheet { left:50%; transform:translateX(-50%); width:620px; } }
+  #sheet .close { position:sticky; top:0; float:right; min-height:34px; padding:4px 12px; font-size:14px; z-index:1; background:var(--bg); }
+  .card { margin:6px 0 12px; display:none; }
   .card p { margin:0 0 8px; font-size:14px; }
-  .card button { min-height:44px; padding:10px 13px; margin:0 6px 6px 0; }
+  .card .ct { font-size:16px; font-weight:700; margin-bottom:12px; }
+  .card button { min-height:44px; padding:10px 14px; margin:0 6px 6px 0; background:var(--bg); }
+  .card button.main { background:var(--accent); color:#fff; }
   #result video { width:100%; max-height:42dvh; border-radius:8px; background:#000; margin-bottom:8px; }
-  progress { width:100%; height:8px; margin-bottom:8px; accent-color:var(--ok); }
+  progress { width:100%; height:8px; margin-bottom:8px; accent-color:var(--accent); }
   .warn { color:var(--warn); }
+  .setrow { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid #12303f; font-size:14px; font-weight:600; }
+  .setrow select { min-height:36px; padding:4px 10px; font-size:14px; background:var(--bg); }
+  .setrow input[type=checkbox] { width:22px; height:22px; accent-color:var(--accent); }
+  .setbtns { margin-top:12px; }
   #info { font-size:11px; color:var(--muted); margin:6px 0; clear:both; }
   #debug { max-height:40dvh; overflow:auto; background:#000; color:#7CFC9A; font:11px/1.35 ui-monospace, Menlo, monospace; padding:6px 8px; white-space:pre-wrap; display:none; border:1px solid #333; border-radius:8px; }
   #debug .e { color:#ff6b6b; } #debug .w { color:#ffd60a; }
-  @media (orientation:landscape) and (max-height:600px) {
-    #app { grid-template-columns:1fr 196px; grid-template-rows:auto 1fr; grid-template-areas:"stage head" "stage bar"; }
-    header { flex-direction:column; align-items:stretch; padding:6px 8px 0; }
-    #bar { border-top:0; border-left:1px solid #262626; overflow-y:auto; }
-    .row { flex-wrap:wrap; }
-    .sep, .break { display:none; }
-  }
 </style>
 </head>
 <body>
-<div id="app">
-  <header>
-    <div>
-      <h1>Seeing Roundnet</h1>
-      <div class="sub" id="ver">Proof of concept v2.4</div>
+<input id="file" type="file" accept="video/*" hidden>
+
+<div id="home">
+  <img id="logo" src="logo.jpg" alt="Seeing Roundnet by Beeks">
+  <div class="homeMain">
+    <div class="tagline">
+      <p class="h">Break down every point.</p>
+      <p class="s">Slow it down, draw on it, explain it, and export your analysis in seconds.</p>
     </div>
+    <div class="actions">
+      <label class="primary" for="file" id="loadBtn"><span data-icon="plus" data-size="20"></span>Load a video</label>
+      <button class="secondary" id="resumeBtn" hidden><span data-icon="playFill" data-size="18"></span>Back to current video</button>
+      <button class="secondary" id="lastBtn" hidden><span data-icon="film" data-size="18"></span>Open last exported video</button>
+      <p class="foot"><span id="verHome"></span> · Nothing is uploaded · <button class="link" id="settingsHome">Settings</button></p>
+    </div>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <button class="ib ghost" id="homeBtn" aria-label="Home" data-icon="back"></button>
+    <div class="brand"><b>SR</b><span>SEEING ROUNDNET</span></div>
     <div class="hbtns">
-      <select id="quality" aria-label="Recording quality"><option value="1280">720p</option><option value="1920">1080p</option></select>
-      <button id="logBtn">Log</button>
-      <button id="diag">Report</button>
+      <button class="ib ghost" id="exportBtn" aria-label="Last exported video" data-icon="share" data-size="20" disabled></button>
+      <button class="ib ghost" id="settingsBtn" aria-label="Settings" data-icon="more" data-size="20"></button>
     </div>
   </header>
 
@@ -86,75 +209,167 @@
     <div id="stage">
       <video id="video" playsinline muted preload="auto"></video>
       <canvas id="view"></canvas>
-      <div id="placeholder">Tap here to load a video</div>
-      <button id="zoomReset" aria-label="Reset zoom">Zoom 1×</button>
-      <div id="recBadge">● REC 00:00</div>
-      <div id="stall"></div>
+      <input id="textBox" type="text" enterkeyhint="done" autocomplete="off" placeholder="Type a note" hidden>
+    </div>
+    <div id="recBadge">● REC 00:00</div>
+    <div id="stall"></div>
+    <div id="hint" hidden></div>
+  </div>
+
+  <div id="leftRail" class="rail">
+    <button class="fb" id="zoomReset" aria-label="Reset zoom" hidden>1×</button>
+    <button class="fb" id="hideBtn" aria-label="Hide drawing tools" data-icon="eye" data-size="20"></button>
+  </div>
+
+  <div id="tools" class="rail">
+    <div class="grp" id="gTool">
+      <button class="fb cur on" id="toolCur" aria-label="Drawing tool (tap to change)"></button>
+      <div class="opts">
+        <button class="fb tool" data-t="pen" aria-label="Scribble" data-icon="pen" data-size="20"></button>
+        <button class="fb tool" data-t="line" aria-label="Straight line" data-icon="line" data-size="20"></button>
+        <button class="fb tool" data-t="arrow" aria-label="Arrow" data-icon="arrow" data-size="20"></button>
+        <button class="fb tool" data-t="circle" aria-label="Circle" data-icon="circle" data-size="20"></button>
+        <button class="fb tool" data-t="angle" aria-label="Angle" data-icon="angle" data-size="20"></button>
+        <button class="fb tool" data-t="text" aria-label="Text" data-icon="text" data-size="20"></button>
+        <button class="fb tool" data-t="timer" aria-label="Timer" data-icon="timer" data-size="20"></button>
+      </div>
+    </div>
+    <div class="grp" id="gColor">
+      <button class="fb cur" id="colorCur" aria-label="Colour (tap to change)"><i class="sw"></i></button>
+      <div class="opts">
+        <button class="fb col" data-c="#FF3B30" aria-label="Red"><i class="sw" style="background:#FF3B30"></i></button>
+        <button class="fb col" data-c="#FFD60A" aria-label="Yellow"><i class="sw" style="background:#FFD60A"></i></button>
+        <button class="fb col" data-c="#4FB3E8" aria-label="Blue"><i class="sw" style="background:#4FB3E8"></i></button>
+        <button class="fb col" data-c="#FFFFFF" aria-label="White"><i class="sw" style="background:#FFFFFF"></i></button>
+        <button class="fb col" data-c="#000000" aria-label="Black"><i class="sw" style="background:#000000"></i></button>
+      </div>
+    </div>
+    <div class="grp" id="gSize">
+      <button class="fb cur" id="sizeCur" aria-label="Line thickness (tap to change)"><i class="dot"></i></button>
+      <div class="opts">
+        <button class="fb siz" data-s="0.6" aria-label="Thin"><i class="dot" style="width:5px;height:5px"></i></button>
+        <button class="fb siz" data-s="1" aria-label="Medium"><i class="dot" style="width:9px;height:9px"></i></button>
+        <button class="fb siz" data-s="1.7" aria-label="Thick"><i class="dot" style="width:14px;height:14px"></i></button>
+      </div>
+    </div>
+    <div class="tactions">
+      <button class="fb" id="undo" aria-label="Undo" data-icon="undo" data-size="20"></button>
+      <button class="fb" id="clear" aria-label="Clear all drawings" data-icon="trash" data-size="20"></button>
     </div>
   </div>
 
   <div id="bar">
-    <div class="row">
-      <input id="scrub" type="range" min="0" max="0" step="0.001" value="0" disabled>
-      <span id="time">00:00.000 / 00:00.000</span>
+    <div class="srow">
+      <span id="tCur">00:00.000</span>
+      <div id="scrubWrap"><input id="scrub" type="range" min="0" max="0" step="0.001" value="0" aria-label="Position in the video"><div id="bmMarks"></div></div>
+      <span id="tDur">00:00</span>
     </div>
-    <div class="tools">
-      <label class="filebtn" id="loadBtn" aria-label="Load video">📂<input id="file" type="file" accept="video/*"></label>
-      <button id="back" disabled aria-label="Previous frame">◀︎</button>
-      <button id="play" disabled aria-label="Play">▶</button>
-      <button id="fwd" disabled aria-label="Next frame">▶︎|</button>
-      <button id="speed" disabled aria-label="Speed">1×</button>
-      <span class="sep"></span>
-      <button id="rec" disabled aria-label="Start recording">● REC</button>
-      <button id="recPause" disabled aria-label="Pause recording">❚❚</button>
-      <span class="break"></span>
-      <button class="tool active" data-t="pen" disabled aria-label="Pen">✎</button>
-      <button class="tool" data-t="arrow" disabled aria-label="Arrow">↗</button>
-      <button id="color" disabled aria-label="Colour"><i style="background:#ff3b30"></i></button>
-      <button id="undo" disabled aria-label="Undo">↶</button>
-      <button id="clear" disabled aria-label="Clear drawings">✕</button>
-      <span class="sep"></span>
-      <button id="exportBtn" disabled aria-label="Saved video">⬆︎ Video</button>
+    <div class="crow">
+      <button class="ib" id="back" aria-label="Previous frame (hold to keep going)" data-icon="prev" data-size="20"></button>
+      <button class="ib" id="play" aria-label="Play or pause" data-icon="playFill" data-size="20"></button>
+      <button class="ib" id="fwd" aria-label="Next frame (hold to keep going)" data-icon="next" data-size="20"></button>
+      <div id="speedWrap">
+        <button id="speed" aria-label="Playback speed">1×</button>
+        <div id="speedMenu"></div>
+      </div>
+      <button class="ib" id="bmBtn" aria-label="Bookmarks" data-icon="bookmark" data-size="20"></button>
+      <span class="spacer"></span>
+      <button class="ib" id="recPause" aria-label="Pause recording" data-icon="pauseFill" data-size="18" hidden></button>
+      <button id="rec" aria-label="Start recording"><i></i></button>
     </div>
   </div>
 </div>
+
+<div id="updateBar"><span id="updateText">New version available</span><button id="updateReload">Reload</button></div>
 
 <div id="sheet">
   <button class="close" id="sheetClose">Close</button>
   <div id="banner" class="card">
     <p id="bannerText"></p>
-    <button id="recover">Recover it</button>
+    <button id="recover" class="main">Recover it</button>
     <button id="dismiss">Discard</button>
   </div>
   <div id="result" class="card">
     <p id="resultText"></p>
     <progress id="progress" max="1" value="0"></progress>
     <video id="preview" playsinline controls></video>
-    <button id="save">Share video</button>
+    <button id="save" class="main">Share video</button>
     <button id="saveFile">Save to Files</button>
     <p class="hint" style="font-size:12px;color:var(--muted);margin:4px 0 8px">Very long videos: use “Save to Files”, then in the Files app open the video and choose Share → Save Video to put it in Photos.</p>
     <button id="saveRaw" style="display:none">Share raw file</button>
     <button id="discard">Delete recording</button>
   </div>
-  <div id="info"></div>
-  <div id="debug"></div>
+  <div id="bmCard" class="card">
+    <p class="ct">Bookmarks</p>
+    <div id="bmEditBox" hidden>
+      <p id="bmTime" style="font-weight:700"></p>
+      <div class="chips" id="bmTags"></div>
+      <div class="newtag"><input id="bmNewTag" placeholder="New tag" maxlength="24" autocomplete="off"><button id="bmNewTagBtn">Add tag</button></div>
+      <textarea id="bmNote" placeholder="Note (optional)"></textarea>
+      <button class="main" id="bmSave">Save</button><button id="bmCancel">Cancel</button><button id="bmDelete">Delete</button>
+    </div>
+    <div id="bmListBox">
+      <button class="main" id="bmAddHere">+ Bookmark this moment</button>
+      <div class="chips" id="bmFilter"></div>
+      <div id="bmItems"></div>
+    </div>
+  </div>
+  <div id="settings" class="card">
+    <p class="ct">Settings</p>
+    <label class="setrow">Recording quality
+      <select id="quality" aria-label="Recording quality"><option value="1920">1080p (recommended)</option><option value="1280">720p (lighter)</option></select></label>
+    <label class="setrow">Left-handed layout (tools on the left) <input type="checkbox" id="lefty"></label>
+    <label class="setrow"><span>Include the match sound in recordings<br><small style="font-weight:500;color:var(--muted)">Added under your voice, at a lower volume. Choose before recording.</small></span> <input type="checkbox" id="matchAudio"></label>
+    <div class="setbtns"><button id="diag">Send a report</button><button id="logBtn">Show log</button></div>
+    <div id="info"></div>
+    <div id="debug"></div>
+  </div>
 </div>
 
 <script>
 (() => {
   'use strict';
-  const VERSION = 'PoC v2.4';
+  const VERSION = 'v1.0 build 2';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
-  const DEBUG = !params.has('nodebug');            // log shown by default during the PoC
+  const DEBUG = params.has('debug');                // log panel open from the start
   const COMPAT = !params.has('nocompat');           // behave like iOS 17 (no audio WebCodecs) — on by default
   const RENDER_FPS = Math.min(60, Math.max(15, +params.get('fps') || 30));
-  let maxSide = +params.get('max') || (() => { try { return +localStorage.getItem('sr-quality-v22'); } catch (e) { return 0; } })() || 1280;   // 720p by default: lighter on iPhone memory
+  let maxSide = +params.get('max') || (() => { try { return +localStorage.getItem('sr-quality-v1'); } catch (e) { return 0; } })() || 1920;   // 1080p by default (Scott, 05/11)
   maxSide = Math.min(3840, Math.max(640, maxSide));
   const videoBps = () => Math.max(0.5, +params.get('mbps') || (maxSide <= 1280 ? 3 : 6)) * 1e6;
   const MB = 1048576;
 
-  $('ver').textContent = `Proof of concept v2.4${COMPAT ? ' · iOS 17 compat' : ''}${DEBUG ? ' · debug' : ''}`;
+  // ---------------------------------------------------------------- icons
+  const ICONS = {
+    pen: '<path d="M3 17c3-6 6 2 9-4s5 3 9-3"/>',
+    line: '<path d="M4 20L20 4"/>',
+    arrow: '<path d="M5 19L19 5M9 5h10v10"/>',
+    circle: '<circle cx="12" cy="12" r="8"/>',
+    angle: '<path d="M4 20L18 5M4 20h16M11 20a8 8 0 0 0-2.3-5.6"/>',
+    text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+    timer: '<circle cx="12" cy="14" r="7"/><path d="M12 14V10M10 3h4"/>',
+    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+    back: '<path d="M15 18l-6-6 6-6"/>',
+    more: '<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>',
+    share: '<path d="M12 15V3M7 8l5-5 5 5M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/>',
+    eye: '<path d="M2 12c1.5-3.5 5.5-7 10-7s8.5 3.5 10 7c-1.5 3.5-5.5 7-10 7s-8.5-3.5-10-7z"/><circle cx="12" cy="12" r="3"/>',
+    eyeOff: '<path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.2M6.6 6.6A13 13 0 0 0 2 12c1 2.5 5 7 10 7a9.8 9.8 0 0 0 4.4-1"/>',
+    prev: '<path d="M6 5v14M18 6l-8 6 8 6z"/>',
+    next: '<path d="M18 5v14M6 6l8 6-8 6z"/>',
+    playFill: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
+    pauseFill: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
+    recDot: '<circle cx="12" cy="12" r="7" fill="#FF3B30" stroke="none"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+    film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>'
+  };
+  const svg = (k, s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
+  const setIcon = (el, k, s) => { el.innerHTML = svg(k, s || +el.dataset.size || 22); };
+  document.querySelectorAll('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', svg(el.dataset.icon, +el.dataset.size || 22)));
+
+  $('verHome').textContent = `Seeing Roundnet ${VERSION}`;
 
   // ---------------------------------------------------------------- logging
   const logLines = [];
@@ -165,20 +380,30 @@
     if (logLines.length > 2000) logLines.splice(0, logLines.length - 2000);
     (level === 'e' ? console.error : level === 'w' ? console.warn : console.log)(line);
     schedulePersistLog(level !== 'i');
-    if (DEBUG) {
-      const d = document.createElement('div');
-      if (level !== 'i') d.className = level;
-      d.textContent = line;
-      $('debug').appendChild(d);
-      while ($('debug').childNodes.length > 400) $('debug').removeChild($('debug').firstChild);
-      $('debug').scrollTop = $('debug').scrollHeight;
-    }
+    const d = document.createElement('div');
+    if (level !== 'i') d.className = level;
+    d.textContent = line;
+    $('debug').appendChild(d);
+    while ($('debug').childNodes.length > 400) $('debug').removeChild($('debug').firstChild);
+    if ($('debug').style.display === 'block') $('debug').scrollTop = $('debug').scrollHeight;
   }
-  if (DEBUG) $('debug').style.display = 'block';
+  const showLog = on => {
+    $('debug').style.display = on ? 'block' : 'none';
+    $('logBtn').textContent = on ? 'Hide log' : 'Show log';
+    if (on) $('debug').scrollTop = $('debug').scrollHeight;
+  };
   const openSheet = () => { $('sheet').style.display = 'block'; };
   const closeSheet = () => { $('sheet').style.display = 'none'; };
-  $('logBtn').onclick = () => $('sheet').style.display === 'block' ? closeSheet() : openSheet();
+  $('logBtn').onclick = () => showLog($('debug').style.display !== 'block');
   $('sheetClose').onclick = closeSheet;
+  function openSettings() {
+    $('result').style.display = 'none'; $('bmCard').style.display = 'none';
+    $('settings').style.display = 'block';
+    openSheet();
+  }
+  $('settingsBtn').onclick = openSettings;
+  $('settingsHome').onclick = openSettings;
+  if (DEBUG) { showLog(true); }
   let persistTimer = null, prevLog = [];
   function schedulePersistLog(now) {
     if (persistTimer && !now) return;
@@ -200,6 +425,20 @@
     }
     log('Compat mode: audio WebCodecs hidden');
   }
+
+  // ---------------------------------------------------------------- preferences
+  const prefs = (() => { try { return JSON.parse(localStorage.getItem('sr-v1-prefs')) || {}; } catch (e) { return {}; } })();
+  const savePrefs = () => { try { localStorage.setItem('sr-v1-prefs', JSON.stringify(prefs)); } catch (e) {} };
+  function setLefty(on) {
+    document.body.classList.toggle('lefty', !!on);
+    $('lefty').checked = !!on;
+    prefs.lefty = !!on; savePrefs();
+    if (typeof fitStage === 'function') setTimeout(fitStage, 0);
+  }
+  $('lefty').onchange = () => setLefty($('lefty').checked);
+  $('matchAudio').checked = !!prefs.matchAudio;
+  $('matchAudio').onchange = () => { if (recState !== 'idle') { $('matchAudio').checked = !!prefs.matchAudio; return; } prefs.matchAudio = $('matchAudio').checked; savePrefs(); };
+  setLefty(prefs.lefty);
 
   // ---------------------------------------------------------------- storage (IndexedDB)
   const DB_NAME = 'seeing-roundnet-v2';
@@ -258,14 +497,15 @@
   const ink = document.createElement('canvas'), ictx = ink.getContext('2d');
   const frame = document.createElement('canvas'), fctx = frame.getContext('2d');   // last good video frame
   let frameValid = false, lastFrameTime = -1, blankFrames = 0;
-  let strokes = [], current = null, tool = 'pen', color = '#ff3b30';
+  let strokes = [], current = null, pendingAngle = null, textPending = null;
+  let tool = prefs.tool || 'pen', color = prefs.color || '#FF3B30', sizeK = prefs.sizeK || 1;
   let fps = 30, fpsSamples = [];
   let recorder = null, micStream = null, wakeLock = null;
   let recState = 'idle';          // idle | recording | paused | finishing
   let recStart = 0, recPausedAt = 0, recPausedTotal = 0, recTimer = null, metaTimer = null;
   let chunkCount = 0, recBytes = 0, writeChain = Promise.resolve(), writeErrors = 0, stopRequested = false;
   let actions = [];
-  let resultFile = null, resultUrl = null, rawBlob = null;
+  let resultFile = null, resultUrl = null, rawBlob = null, lastStored = null;
   let flushTimer = null, lastDataAt = 0, maxGap = 0, stallWarned = false, emptyChunks = 0, videoPlayingAtRecPause = false;
   let sessionId = null;
 
@@ -301,13 +541,40 @@
   }
   function setInfo(extra) {
     const size = view.width ? `${view.width}×${view.height}` : '–';
-    $('info').textContent = `${VERSION} · format: ${pickType() || 'browser default'} · output: ${size} @${RENDER_FPS}fps · source ≈${fps}fps${extra ? ' · ' + extra : ''}`;
+    $('info').textContent = `${VERSION}${COMPAT ? ' · iOS 17 compat' : ''} · format: ${pickType() || 'browser default'} · output: ${size} @${RENDER_FPS}fps · source ≈${fps}fps${extra ? ' · ' + extra : ''}`;
   }
-  const editControls = () => [...document.querySelectorAll('#bar button, #scrub')];
+  const editControls = () => [...document.querySelectorAll('#bar button, #scrub, #tools button, #leftRail button')];
   function enableEditing(on) {
     editControls().forEach(el => { if (el.id !== 'recPause') el.disabled = !on; });
     $('recPause').disabled = !(recState === 'recording' || recState === 'paused');
   }
+  let hintTimer = null;
+  function hint(text, ms = 2600) {
+    clearTimeout(hintTimer);
+    if (!text) { $('hint').hidden = true; return; }
+    $('hint').textContent = text; $('hint').hidden = false;
+    hintTimer = setTimeout(() => { $('hint').hidden = true; }, ms);
+  }
+
+  // ---------------------------------------------------------------- screens
+  function showHome() {
+    if (recState !== 'idle') return;
+    video.pause();
+    closeMenus();
+    $('app').hidden = true; $('home').hidden = false;
+    $('resumeBtn').hidden = !video.src;
+    $('lastBtn').hidden = !(resultFile || lastStored);
+  }
+  function showApp() {
+    $('home').hidden = true; $('app').hidden = false;
+    fitStage();
+  }
+  $('homeBtn').onclick = showHome;
+  $('resumeBtn').onclick = showApp;
+  $('lastBtn').onclick = async () => {
+    if (resultFile) { $('settings').style.display = 'none'; $('bmCard').style.display = 'none'; $('result').style.display = 'block'; openSheet(); return; }
+    if (lastStored) await lastStored();
+  };
 
   // ---------------------------------------------------------------- load video
   $('file').addEventListener('change', e => {
@@ -316,15 +583,17 @@
     if (!f) return;
     if (recState !== 'idle') { alert('Stop the recording before loading another video.'); return; }
     if (video.src) URL.revokeObjectURL(video.src);
+    videoKey = `${f.name || 'video'}|${f.size}`;
     log(`Loading ${f.name || 'video'} · ${mbs(f.size)} · ${f.type || 'unknown type'}`);
     fpsSamples = []; fps = 30; fpsMeasured = false; fileLoadId++; frameValid = false; resetZoom();
+    enableEditing(false);
+    showApp();
     video.src = URL.createObjectURL(f);
     video.load();
   });
   ['emptied', 'stalled', 'waiting', 'abort'].forEach(ev => video.addEventListener(ev, () => {
     if (video.src) log(`Video event: ${ev} (readyState ${video.readyState}, t=${fmtT(video.currentTime)})`, ev === 'waiting' ? 'i' : 'w');
   }));
-  $('placeholder').onclick = () => { if (recState === 'idle') $('file').click(); };
   video.addEventListener('error', () => log(`Video element error: ${video.error && video.error.message || video.error && video.error.code}`, 'e'));
 
   function applySize() {
@@ -338,16 +607,17 @@
     view.height = ink.height = frame.height = oh;
     if (oldInk && (oldInk.w !== ow)) {            // keep drawings in place when the quality changes
       const k = ow / oldInk.w;
-      strokes.forEach(st => { st.w = Math.max(3, st.w * k); st.pts = st.pts.map(p => [p[0] * k, p[1] * k]); });
+      strokes.forEach(st => { st.w = Math.max(2, st.w * k); if (st.fs) st.fs *= k; st.pts = st.pts.map(p => [p[0] * k, p[1] * k]); });
     }
     redrawInk(); frameValid = false; resetZoom();
     fitStage();
     return { w, h, ow, oh };
   }
-  // The video area takes all the room left by the toolbar, keeping the video's proportions.
+  // The video area takes all the room left by the bars, keeping the video's proportions.
   function fitStage() {
     const wrap = $('stageWrap'), st = $('stage');
     const W = wrap.clientWidth, H = wrap.clientHeight;
+    if (!W || !H) return;
     const ar = view.width && view.height ? view.width / view.height : 16 / 9;
     let w = W, h = W / ar;
     if (h > H) { h = H; w = H * ar; }
@@ -355,12 +625,11 @@
   }
   if (window.ResizeObserver) new ResizeObserver(fitStage).observe($('stageWrap'));
   window.addEventListener('resize', fitStage);
-  fitStage();
   $('quality').value = String(maxSide <= 1280 ? 1280 : 1920);
   $('quality').onchange = () => {
-    if (recState !== 'idle') { $('quality').value = String(maxSide); return; }
+    if (recState !== 'idle') { $('quality').value = String(maxSide <= 1280 ? 1280 : 1920); return; }
     maxSide = +$('quality').value;
-    try { localStorage.setItem('sr-quality-v22', String(maxSide)); } catch (e) {}
+    try { localStorage.setItem('sr-quality-v1', String(maxSide)); } catch (e) {}
     const r = applySize();
     log(`Quality set to ${maxSide <= 1280 ? '720p' : '1080p'}${r ? ` → output ${r.ow}×${r.oh}` : ''}`);
     setInfo();
@@ -379,10 +648,10 @@
       return;
     }
     setUpFor = fileLoadId; reloads = 0; lastGoodTime = 0; wasPlaying = false;
-    strokes = [];
+    strokes = []; pendingAngle = null; current = null;
     const { w, h, ow, oh } = applySize();
-    $('placeholder').style.display = 'none';
     $('scrub').max = video.duration;
+    loadBookmarks();
     strokes = []; redrawInk();
     video.currentTime = 0.001;   // makes iOS decode the first frame
     enableEditing(true);
@@ -433,8 +702,8 @@
     Z.s = Math.min(6, Math.max(1, Z.s));
     Z.x = Math.min(0, Math.max(view.width - Z.s * view.width, Z.x));
     Z.y = Math.min(0, Math.max(view.height - Z.s * view.height, Z.y));
-    $('zoomReset').style.display = Z.s > 1.01 ? 'block' : 'none';
-    $('zoomReset').textContent = `Zoom ${Z.s.toFixed(1)}× · reset`;
+    $('zoomReset').hidden = !(Z.s > 1.01);
+    $('zoomReset').textContent = `${Z.s.toFixed(1)}×`;
     dirty = true;
   }
   function resetZoom() { Z.s = 1; Z.x = 0; Z.y = 0; clampZoom(); }
@@ -464,6 +733,7 @@
       ctx.setTransform(Z.s, 0, 0, Z.s, Z.x, Z.y);
     }
     ctx.drawImage(ink, 0, 0);
+    for (const s of strokes) if (s.tool === 'timer') drawTimer(s, ctx);   // timers change with the video: drawn live
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
   function loop(now) {
@@ -477,7 +747,8 @@
     if (now - lastUi > 100) {
       lastUi = now;
       if (document.activeElement !== $('scrub')) $('scrub').value = video.currentTime;
-      $('time').textContent = `${fmtT(video.currentTime)} / ${fmtRec((video.duration || 0) * 1000)}`;
+      $('tCur').textContent = fmtT(video.currentTime);
+      $('tDur').textContent = fmtRec((video.duration || 0) * 1000);
     }
   }
   requestAnimationFrame(loop);
@@ -485,9 +756,9 @@
 
   // ---------------------------------------------------------------- playback
   $('play').onclick = () => video.paused ? video.play().catch(e => log('play() failed: ' + errMsg(e), 'w')) : video.pause();
-  video.addEventListener('play', () => { $('play').textContent = '❚❚'; act('play'); });
-  video.addEventListener('pause', () => { $('play').textContent = '▶'; act('pause'); });
-  video.addEventListener('ended', () => { $('play').textContent = '▶'; });
+  video.addEventListener('play', () => { setIcon($('play'), 'pauseFill'); act('play'); });
+  video.addEventListener('pause', () => { setIcon($('play'), 'playFill'); act('pause'); });
+  video.addEventListener('ended', () => { setIcon($('play'), 'playFill'); });
 
   function step(dir) {
     video.pause();
@@ -510,16 +781,76 @@
   $('scrub').addEventListener('input', e => { video.currentTime = +e.target.value; });
   $('scrub').addEventListener('change', () => act('seek'));
 
-  const SPEEDS = [1, 0.5, 0.25, 0.1];
-  $('speed').onclick = () => {
-    const next = SPEEDS[(SPEEDS.indexOf(video.playbackRate) + 1) % SPEEDS.length] || 1;
-    video.playbackRate = video.defaultPlaybackRate = next;
-    $('speed').textContent = next + '×';
-    $('speed').classList.toggle('active', next !== 1);
+  // Slow motion first (most used), then fast forward (Scott: 2× and 5× to skip through).
+  const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5];
+  SPEEDS.slice().reverse().forEach(v => {
+    const b = document.createElement('button');
+    b.textContent = v + '×'; b.dataset.v = v;
+    b.onclick = () => { setSpeed(v); closeMenus(); };
+    $('speedMenu').appendChild(b);
+  });
+  function setSpeed(v) {
+    video.playbackRate = video.defaultPlaybackRate = v;
+    $('speed').textContent = v + '×';
+    $('speedMenu').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v === v));
     act('rate');
+  }
+  setSpeed(1);
+  $('speed').onclick = () => { const open = !$('speedMenu').classList.contains('open'); closeMenus(); $('speedMenu').classList.toggle('open', open); };
+
+  // ---------------------------------------------------------------- tool panels
+  function closeMenus() {
+    document.querySelectorAll('.grp.open').forEach(g => g.classList.remove('open'));
+    $('speedMenu').classList.remove('open');
+  }
+  document.querySelectorAll('.grp .cur').forEach(b => b.onclick = () => {
+    const g = b.parentElement, open = !g.classList.contains('open');
+    closeMenus(); g.classList.toggle('open', open);
+  });
+  document.addEventListener('pointerdown', e => {
+    if (!e.target.closest('.grp, #speedWrap')) closeMenus();
+  }, true);
+
+  const TOOL_HINTS = {
+    angle: 'Angle: draw the first line from the joint, then the second one',
+    text: 'Tap where the note goes',
+    timer: 'Tap to place a timer: it counts from this frame',
+    circle: 'Drag to draw a circle around a player'
+  };
+  function selectTool(t, quiet) {
+    tool = t; prefs.tool = t; savePrefs();
+    pendingAngle = null;
+    document.querySelectorAll('.tool').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+    setIcon($('toolCur'), t, 22);
+    if (!quiet) { closeMenus(); hint(TOOL_HINTS[t] || ''); }
+  }
+  function selectColor(c, quiet) {
+    color = c; prefs.color = c; savePrefs();
+    document.querySelectorAll('.col').forEach(b => b.classList.toggle('on', b.dataset.c === c));
+    $('colorCur').querySelector('.sw').style.background = c;
+    if (!quiet) closeMenus();
+  }
+  function selectSize(k, quiet) {
+    sizeK = k; prefs.sizeK = k; savePrefs();
+    document.querySelectorAll('.siz').forEach(b => b.classList.toggle('on', +b.dataset.s === k));
+    const px = Math.round(9 * Math.sqrt(k) * (k < 1 ? 0.8 : 1));
+    const d = $('sizeCur').querySelector('.dot'); d.style.width = d.style.height = px + 'px';
+    if (!quiet) closeMenus();
+  }
+  document.querySelectorAll('.tool').forEach(b => b.onclick = () => selectTool(b.dataset.t));
+  document.querySelectorAll('.col').forEach(b => b.onclick = () => selectColor(b.dataset.c));
+  document.querySelectorAll('.siz').forEach(b => b.onclick = () => selectSize(+b.dataset.s));
+  selectTool(tool, true); selectColor(color, true); selectSize(sizeK, true);
+  $('hideBtn').onclick = () => {
+    const bare = $('app').classList.toggle('bare');
+    setIcon($('hideBtn'), bare ? 'eyeOff' : 'eye', 20);
+    $('hideBtn').setAttribute('aria-label', bare ? 'Show drawing tools' : 'Hide drawing tools');
+    closeMenus();
   };
 
   // ---------------------------------------------------------------- drawing
+  const baseW = () => Math.max(3, Math.round(Math.max(view.width, view.height) / 320));
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   function canvasPos(e) {
     const r = view.getBoundingClientRect();
     return [(e.clientX - r.left) * view.width / r.width, (e.clientY - r.top) * view.height / r.height];
@@ -528,48 +859,134 @@
     const [cx, cy] = canvasPos(e);
     return [Math.round((cx - Z.x) / Z.s), Math.round((cy - Z.y) / Z.s)];
   }
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath();
+  }
+  // A label on a dark rounded box (light box for black text), so it reads on any background.
+  function drawLabel(c, text, x, y, fs, col, align) {
+    c.save();
+    c.font = `700 ${Math.round(fs)}px Montserrat, -apple-system, system-ui, sans-serif`;
+    c.textBaseline = 'middle';
+    const w = c.measureText(text).width, padX = fs * 0.4, h = fs * 1.45;
+    const bx = align === 'center' ? x - w / 2 - padX : x - padX, by = y - h / 2;
+    c.fillStyle = col === '#000000' ? 'rgba(255,255,255,0.88)' : 'rgba(5,17,23,0.8)';
+    roundRect(c, bx, by, w + padX * 2, h, Math.min(h / 3, fs * 0.35)); c.fill();
+    c.fillStyle = col;
+    c.textAlign = 'left';
+    c.fillText(text, bx + padX, y + fs * 0.04);
+    c.restore();
+  }
+  function drawAngle(s, c) {
+    const [V, A, B] = s.pts;
+    c.beginPath(); c.moveTo(V[0], V[1]); c.lineTo(A[0], A[1]);
+    if (B) { c.moveTo(V[0], V[1]); c.lineTo(B[0], B[1]); }
+    c.stroke();
+    c.beginPath(); c.arc(V[0], V[1], Math.max(3, s.w * 1.2), 0, Math.PI * 2); c.fill();
+    if (!B || dist(V, B) < 2) return;
+    const a1 = Math.atan2(A[1] - V[1], A[0] - V[0]), a2 = Math.atan2(B[1] - V[1], B[0] - V[0]);
+    let d = a2 - a1;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d <= -Math.PI) d += 2 * Math.PI;
+    const deg = Math.abs(d) * 180 / Math.PI;
+    const r = Math.max(10, Math.min(s.fs * 2.2, dist(V, A) * 0.45, dist(V, B) * 0.45));
+    c.save();
+    c.lineWidth = Math.max(2, s.w * 0.6);
+    c.beginPath(); c.arc(V[0], V[1], r, a1, a1 + d, d < 0); c.stroke();
+    c.restore();
+    const mid = a1 + d / 2, lr = r + s.fs * 1.3;
+    drawLabel(c, `${Math.round(deg)}°`, V[0] + Math.cos(mid) * lr, V[1] + Math.sin(mid) * lr, s.fs, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
+  }
+  function drawTimer(s, c) {
+    const dt = video.currentTime - s.t0;
+    const txt = `${dt < 0 ? '−' : ''}${Math.abs(dt).toFixed(2)} s`;
+    drawLabel(c, txt, s.pts[0][0], s.pts[0][1], s.fs, s.color, 'center');
+  }
   function drawStroke(s, c) {
+    c.save();
     c.strokeStyle = s.color; c.fillStyle = s.color;
     c.lineWidth = s.w; c.lineCap = 'round'; c.lineJoin = 'round';
-    const p = s.pts;
-    if (s.tool === 'arrow') {
-      const [a, b] = [p[0], p[p.length - 1]];
-      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
-      const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = s.w * 4.5;
-      c.beginPath();
-      c.moveTo(b[0], b[1]);
-      c.lineTo(b[0] - L * Math.cos(ang - 0.45), b[1] - L * Math.sin(ang - 0.45));
-      c.lineTo(b[0] - L * Math.cos(ang + 0.45), b[1] - L * Math.sin(ang + 0.45));
-      c.closePath(); c.fill();
-      return;
+    const p = s.pts, a = p[0], b = p[p.length - 1];
+    switch (s.tool) {
+      case 'arrow': {
+        c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+        const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = s.w * 4.5;
+        c.beginPath();
+        c.moveTo(b[0], b[1]);
+        c.lineTo(b[0] - L * Math.cos(ang - 0.45), b[1] - L * Math.sin(ang - 0.45));
+        c.lineTo(b[0] - L * Math.cos(ang + 0.45), b[1] - L * Math.sin(ang + 0.45));
+        c.closePath(); c.fill();
+        break;
+      }
+      case 'line':
+        c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+        break;
+      case 'circle': {
+        const rx = Math.abs(b[0] - a[0]) / 2, ry = Math.abs(b[1] - a[1]) / 2;
+        if (rx < 1 && ry < 1) break;
+        c.beginPath(); c.ellipse((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Math.max(rx, 1), Math.max(ry, 1), 0, 0, Math.PI * 2); c.stroke();
+        break;
+      }
+      case 'angle': drawAngle(s, c); break;
+      case 'text': drawLabel(c, s.text, a[0], a[1], s.fs, s.color, 'left'); break;
+      case 'timer': break;                         // drawn live in render()
+      default:
+        c.beginPath();
+        p.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]));
+        if (p.length === 1) c.lineTo(p[0][0] + 0.1, p[0][1]);
+        c.stroke();
     }
-    c.beginPath();
-    p.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]));
-    if (p.length === 1) c.lineTo(p[0][0] + 0.1, p[0][1]);
-    c.stroke();
+    c.restore();
   }
   function redrawInk() {
     dirty = true;
     ictx.clearRect(0, 0, ink.width, ink.height);
     strokes.forEach(s => drawStroke(s, ictx));
-    if (current) drawStroke(current, ictx);
+    if (current && !current.tap) drawStroke(current, ictx);
   }
+  if (document.fonts && document.fonts.load) document.fonts.load('700 20px Montserrat').then(redrawInk).catch(() => {});
+
+  function newShape(t, p) {
+    const w = Math.max(2, Math.round(baseW() * sizeK));
+    const fs = Math.max(14, Math.round(baseW() * (t === 'text' ? 8 : 6.5) * Math.sqrt(sizeK)));
+    return { tool: t, color, w, fs, pts: [p] };
+  }
+  function cancelCurrent() {
+    if (current && current.reopened) { delete current.reopened; current.pts.length = 2; strokes.push(current); }
+    current = null; redrawInk();
+  }
+  const logShape = (s, type) => act(type || 'stroke', { tool: s.tool, color: s.color, w: s.w, pts: s.pts, text: s.text, t0: s.t0 });
+
   const pointers = new Map();
   let pinch = null;
   view.addEventListener('pointerdown', e => {
     if (!view.width || !video.src) return;
     e.preventDefault();
+    if (textPending) commitText();
+    closeMenus();
     try { view.setPointerCapture(e.pointerId); } catch (err) {}
     pointers.set(e.pointerId, canvasPos(e));
-    if (pointers.size === 2) {                         // second finger: zoom / pan, cancel the stroke
-      current = null; redrawInk();
+    if (pointers.size === 2) {                         // second finger: zoom / pan, cancel the shape
+      cancelCurrent();
       const [a, b] = [...pointers.values()];
       const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
       pinch = { d0: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, s0: Z.s, base: [(mid[0] - Z.x) / Z.s, (mid[1] - Z.y) / Z.s] };
       return;
     }
     if (pointers.size > 2 || pinch) return;
-    current = { tool, color, w: Math.max(3, Math.round(Math.max(view.width, view.height) / 320)), pts: [pos(e)] };
+    const p = pos(e);
+    if (tool === 'text' || tool === 'timer') { current = Object.assign(newShape(tool, p), { tap: true }); return; }
+    if (tool === 'angle' && pendingAngle && strokes[strokes.length - 1] === pendingAngle) {
+      current = strokes.pop();                         // second line of the angle, from the same joint
+      current.reopened = true; current.pts[2] = p;
+      redrawInk(); return;
+    }
+    pendingAngle = null;
+    current = newShape(tool, p);
+    if (tool !== 'pen') current.pts.push(p);
     redrawInk();
   });
   view.addEventListener('pointermove', e => {
@@ -583,29 +1000,53 @@
       clampZoom();
       return;
     }
-    if (!current) return;
+    if (!current || current.tap || !pointers.has(e.pointerId)) return;
     const p = pos(e);
-    if (current.tool === 'arrow') { current.pts[1] = p; redrawInk(); return; }
-    const q = current.pts[current.pts.length - 1];
-    current.pts.push(p);
-    ictx.strokeStyle = current.color; ictx.lineWidth = current.w; ictx.lineCap = 'round'; ictx.lineJoin = 'round';
-    ictx.beginPath(); ictx.moveTo(q[0], q[1]); ictx.lineTo(p[0], p[1]); ictx.stroke();
+    if (current.tool === 'pen') {
+      const q = current.pts[current.pts.length - 1];
+      current.pts.push(p);
+      ictx.strokeStyle = current.color; ictx.lineWidth = current.w; ictx.lineCap = 'round'; ictx.lineJoin = 'round';
+      ictx.beginPath(); ictx.moveTo(q[0], q[1]); ictx.lineTo(p[0], p[1]); ictx.stroke();
+      dirty = true;
+      return;
+    }
+    if (current.reopened) current.pts[2] = p; else current.pts[1] = p;
+    redrawInk();
   });
-  function endStroke() {
+  function endShape() {
     if (!current) return;
-    strokes.push(current);
-    act('stroke', { tool: current.tool, color: current.color, w: current.w, pts: current.pts });
-    current = null;
+    const s = current; current = null;
+    const minLen = Math.max(8, baseW() * 2);
+    if (s.tap) {
+      delete s.tap;
+      if (s.tool === 'timer') { s.t0 = +video.currentTime.toFixed(3); strokes.push(s); logShape(s); redrawInk(); }
+      else openTextBox(s);
+      return;
+    }
+    if (s.tool === 'angle') {
+      if (s.reopened) {
+        delete s.reopened;
+        if (dist(s.pts[0], s.pts[2]) < minLen) { s.pts.length = 2; strokes.push(s); redrawInk(); return; }
+        strokes.push(s); pendingAngle = null; logShape(s, 'angle2'); redrawInk(); return;
+      }
+      if (dist(s.pts[0], s.pts[1]) < minLen) { redrawInk(); return; }
+      strokes.push(s); pendingAngle = s; logShape(s);
+      hint('Now draw the second line', 2000);
+      redrawInk(); return;
+    }
+    if (s.tool !== 'pen' && dist(s.pts[0], s.pts[1]) < minLen) { redrawInk(); return; }
+    strokes.push(s); logShape(s);
     redrawInk();
   }
   function pointerEnd(e) {
+    if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (pinch) {
       if (pointers.size < 2) { act('zoom', { s: +Z.s.toFixed(2) }); }
       if (pointers.size === 0) pinch = null;
       return;
     }
-    endStroke();
+    endShape();
   }
   view.addEventListener('pointerup', pointerEnd);
   view.addEventListener('pointercancel', pointerEnd);
@@ -622,25 +1063,183 @@
     clampZoom();
   }, { passive: false });
 
-  document.querySelectorAll('.tool').forEach(b => b.onclick = () => {
-    tool = b.dataset.t;
-    document.querySelectorAll('.tool').forEach(x => x.classList.toggle('active', x === b));
+  // Text notes: a small text field appears where you tapped; Enter (or tapping elsewhere) places it.
+  function openTextBox(s) {
+    textPending = s;
+    const r = view.getBoundingClientRect();
+    const x = (s.pts[0][0] * Z.s + Z.x) * r.width / view.width, y = (s.pts[0][1] * Z.s + Z.y) * r.height / view.height;
+    const tb = $('textBox');
+    tb.value = ''; tb.hidden = false;
+    tb.style.left = Math.max(0, Math.min(x - 10, r.width - tb.offsetWidth)) + 'px';
+    tb.style.top = Math.max(0, Math.min(y - 20, r.height - 44)) + 'px';
+    tb.style.color = s.color === '#000000' ? '#fff' : s.color;
+    tb.focus();
+  }
+  function commitText() {
+    if (!textPending) return;
+    const s = textPending, tb = $('textBox');
+    textPending = null;
+    const v = tb.value.trim();
+    tb.hidden = true; tb.blur();
+    if (v) { s.text = v; strokes.push(s); logShape(s); redrawInk(); }
+  }
+  $('textBox').addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); commitText(); }
+    else if (e.key === 'Escape') { $('textBox').value = ''; commitText(); }
   });
-  const COLORS = ['#ff3b30', '#ffd60a', '#5ac8fa', '#ffffff'];
-  $('color').onclick = () => {
-    color = COLORS[(COLORS.indexOf(color) + 1) % COLORS.length];
-    $('color').querySelector('i').style.background = color;
+  $('textBox').addEventListener('blur', () => setTimeout(commitText, 0));
+
+  $('undo').onclick = () => {
+    if (textPending) { $('textBox').value = ''; commitText(); return; }
+    const s = strokes.pop();
+    if (s && s === pendingAngle) pendingAngle = null;
+    redrawInk(); act('undo');
   };
-  $('undo').onclick = () => { strokes.pop(); redrawInk(); act('undo'); };
-  $('clear').onclick = () => { strokes = []; redrawInk(); act('clear'); };
+  $('clear').onclick = () => { if (textPending) { $('textBox').value = ''; commitText(); } strokes = []; pendingAngle = null; redrawInk(); act('clear'); };
+
+  // ---------------------------------------------------------------- bookmarks
+  // A bookmark = a moment of the video + tags + an optional note. Saved on the device for this
+  // video (same file name and size), so notes prepared beforehand are still there next time.
+  const DEFAULT_TAGS = ['Serve', 'Receive', 'Set', 'Hit', 'Defense'];
+  const TAG_COLORS = ['#1484C4', '#4FB3E8', '#E3E3E3', '#8FD0F2', '#5B9BC0', '#B7C9D3', '#2E7FB0', '#D6E6EE'];
+  let bookmarks = [], videoKey = '', bmEditing = null, bmFilter = null;
+  const allTags = () => DEFAULT_TAGS.concat(prefs.customTags || []);
+  const tagColor = t => TAG_COLORS[Math.max(0, allTags().indexOf(t)) % TAG_COLORS.length];
+  function loadBookmarks() {
+    try { bookmarks = JSON.parse(localStorage.getItem('sr-bm-' + videoKey)) || []; } catch (e) { bookmarks = []; }
+    bmFilter = null; renderMarks();
+    if (bookmarks.length) log(`${bookmarks.length} bookmark(s) restored for this video`);
+  }
+  function saveBookmarks() {
+    bookmarks.sort((a, b) => a.t - b.t);
+    try { localStorage.setItem('sr-bm-' + videoKey, JSON.stringify(bookmarks)); } catch (e) { log('Could not save bookmarks: ' + errMsg(e), 'w'); }
+    renderMarks();
+  }
+  function renderMarks() {
+    const box = $('bmMarks'); box.innerHTML = '';
+    const d = video.duration;
+    if (!isFinite(d) || !d) return;
+    bookmarks.filter(b => !bmFilter || b.tags.includes(bmFilter)).forEach(b => {
+      const i = document.createElement('i');
+      i.style.left = (b.t / d * 100) + '%';
+      i.style.background = b.tags.length ? tagColor(b.tags[0]) : '#E3E3E3';
+      box.appendChild(i);
+    });
+  }
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const chipHtml = (t, sel) => `<button class="chip${sel ? ' sel' : ''}" data-tag="${esc(t)}"><i style="background:${tagColor(t)}"></i>${esc(t)}</button>`;
+  function openBookmarks() {
+    closeMenus();
+    $('result').style.display = 'none'; $('settings').style.display = 'none';
+    $('bmCard').style.display = 'block';
+    showBmList();
+    openSheet();
+  }
+  function showBmList() {
+    bmEditing = null;
+    $('bmEditBox').hidden = true; $('bmListBox').hidden = false;
+    $('bmAddHere').textContent = `+ Bookmark this moment (${fmtT(video.currentTime)})`;
+    const used = allTags().filter(t => bookmarks.some(b => b.tags.includes(t)));
+    $('bmFilter').innerHTML = used.length ? `<button class="chip${!bmFilter ? ' sel' : ''}" data-tag="">All</button>` + used.map(t => chipHtml(t, bmFilter === t)).join('') : '';
+    const list = bookmarks.filter(b => !bmFilter || b.tags.includes(bmFilter));
+    $('bmItems').innerHTML = list.length ? list.map(b => `<div class="bmItem">
+        <button class="bmT" data-go="${b.id}">${fmtT(b.t)}</button>
+        <div class="bmBody">${b.tags.length ? '<div class="chips">' + b.tags.map(t => chipHtml(t, true)).join('') + '</div>' : ''}${b.note ? '<p>' + esc(b.note) + '</p>' : ''}</div>
+        <button data-edit="${b.id}" aria-label="Edit bookmark">Edit</button></div>`).join('')
+      : '<p id="bmEmpty">No bookmarks yet. Mark a moment, give it one or two tags and a note, then jump back to it from here.</p>';
+  }
+  function editBookmark(b) {
+    bmEditing = b;
+    $('bmListBox').hidden = true; $('bmEditBox').hidden = false;
+    $('bmTime').textContent = `At ${fmtT(b.t)}`;
+    renderBmTags();
+    $('bmNote').value = b.note || '';
+    $('bmNewTag').value = '';
+    $('bmDelete').hidden = !bookmarks.includes(b);
+  }
+  function renderBmTags() {
+    $('bmTags').innerHTML = allTags().map(t => chipHtml(t, bmEditing.tags.includes(t))).join('');
+  }
+  function addBookmarkNow(openEditor) {
+    if (!video.src) return;
+    const b = { id: Date.now().toString(36), t: +video.currentTime.toFixed(3), tags: [], note: '' };
+    act('bookmark', { bt: b.t });
+    if (openEditor) { $('bmCard').style.display = 'block'; $('result').style.display = 'none'; $('settings').style.display = 'none'; openSheet(); editBookmark(b); }
+    else { bookmarks.push(b); saveBookmarks(); hint(`Bookmark added at ${fmtT(b.t)}`, 1500); }
+  }
+  $('bmBtn').onclick = openBookmarks;
+  $('bmAddHere').onclick = () => addBookmarkNow(true);
+  $('bmTags').onclick = e => {
+    const c = e.target.closest('.chip'); if (!c || !bmEditing) return;
+    const t = c.dataset.tag, i = bmEditing.tags.indexOf(t);
+    if (i >= 0) bmEditing.tags.splice(i, 1); else bmEditing.tags.push(t);
+    renderBmTags();
+  };
+  function addCustomTag() {
+    const t = $('bmNewTag').value.trim().replace(/\s+/g, ' ');
+    if (!t) return;
+    const known = allTags().find(x => x.toLowerCase() === t.toLowerCase());
+    const tag = known || t;
+    if (!known) { prefs.customTags = (prefs.customTags || []).concat(tag); savePrefs(); }
+    if (bmEditing && !bmEditing.tags.includes(tag)) bmEditing.tags.push(tag);
+    $('bmNewTag').value = '';
+    renderBmTags();
+  }
+  $('bmNewTagBtn').onclick = addCustomTag;
+  $('bmNewTag').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); addCustomTag(); } });
+  $('bmNote').addEventListener('keydown', e => e.stopPropagation());
+  $('bmSave').onclick = () => {
+    if (!bmEditing) return;
+    bmEditing.note = $('bmNote').value.trim();
+    if (!bookmarks.includes(bmEditing)) bookmarks.push(bmEditing);
+    act('bookmarkSave', { bt: bmEditing.t, tags: bmEditing.tags });
+    saveBookmarks(); showBmList();
+  };
+  $('bmCancel').onclick = showBmList;
+  $('bmDelete').onclick = () => {
+    if (!bmEditing) return;
+    bookmarks = bookmarks.filter(b => b !== bmEditing);
+    saveBookmarks(); showBmList();
+  };
+  $('bmFilter').onclick = e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    bmFilter = c.dataset.tag || null;
+    renderMarks(); showBmList();
+  };
+  $('bmItems').onclick = e => {
+    const go = e.target.closest('[data-go]'), ed = e.target.closest('[data-edit]');
+    if (go) {
+      const b = bookmarks.find(x => x.id === go.dataset.go);
+      if (b) { video.pause(); video.currentTime = b.t; act('seek', { bookmark: b.id }); closeSheet(); }
+    } else if (ed) {
+      const b = bookmarks.find(x => x.id === ed.dataset.edit);
+      if (b) editBookmark(b);
+    }
+  };
+  function jumpBookmark(dir) {
+    const list = bookmarks.filter(b => !bmFilter || b.tags.includes(bmFilter));
+    const t = video.currentTime;
+    const b = dir > 0 ? list.find(x => x.t > t + 0.01) : list.slice().reverse().find(x => x.t < t - 0.01);
+    if (b) { video.pause(); video.currentTime = b.t; act('seek', { bookmark: b.id }); }
+  }
 
   // ---------------------------------------------------------------- keyboard (laptop)
+  const TOOL_KEYS = { p: 'pen', l: 'line', a: 'arrow', c: 'circle', g: 'angle', t: 'text', m: 'timer' };
   document.addEventListener('keydown', e => {
-    if (!video.src || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.id !== 'scrub') return;
+    if (!video.src || $('app').hidden || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.id !== 'scrub') return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('undo').click(); }
     else if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); $('play').click(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+    else if (!e.ctrlKey && !e.metaKey && !e.altKey && ['1', '2', '5'].includes(e.key)) {
+      // 1 = normal speed; 2 / 5 = 2× / 5× (press again to go back to 1×)
+      const v = +e.key;
+      setSpeed(v !== 1 && video.playbackRate === v ? 1 : v);
+    }
+    else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'b') addBookmarkNow(true);
+    else if (e.key === '[' || e.key === ']') jumpBookmark(e.key === ']' ? 1 : -1);
+    else if (!e.ctrlKey && !e.metaKey && !e.altKey && TOOL_KEYS[e.key.toLowerCase()]) selectTool(TOOL_KEYS[e.key.toLowerCase()]);
   });
 
   // ---------------------------------------------------------------- screen wake lock
@@ -676,7 +1275,7 @@
       videoPlayingAtRecPause = !video.paused;
       if (videoPlayingAtRecPause) video.pause();             // Scott: pausing the recording pauses the video too
       act('recPause');
-      $('recPause').textContent = '⏺';
+      setIcon($('recPause'), 'recDot'); $('recPause').setAttribute('aria-label', 'Resume recording');
       $('recBadge').classList.add('paused');
     } else if (recState === 'paused') {
       try { recorder.resume(); } catch (e) { log('resume() failed: ' + errMsg(e), 'w'); return; }
@@ -685,7 +1284,7 @@
       lastDataAt = performance.now();   // no data is expected while paused
       act('recResume');
       if (videoPlayingAtRecPause) video.play().catch(() => {});   // and resuming plays it again
-      $('recPause').textContent = '❚❚';
+      setIcon($('recPause'), 'pauseFill'); $('recPause').setAttribute('aria-label', 'Pause recording');
       $('recBadge').classList.remove('paused');
     }
   };
@@ -699,8 +1298,38 @@
     }, extra || {})).then(() => setMeta('actions', { list: actions })).catch(e => log('Could not save session info: ' + errMsg(e), 'w'));
   }
 
+  // Match sound (optional): the video's own sound is mixed under the voice, at a lower volume.
+  // It is not played on the speakers while recording, so the microphone does not pick it up twice.
+  let actx = null, vidSrc = null, vidGain = null, micNode = null;
+  function prepareAudioContext() {               // must run during the tap on REC (iOS)
+    if (!prefs.matchAudio) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+    } catch (e) { log('Audio mixing unavailable: ' + errMsg(e), 'w'); actx = null; }
+  }
+  function mixedAudioTrack(mic) {
+    if (!actx) return null;
+    try {
+      if (!vidSrc) {
+        vidSrc = actx.createMediaElementSource(video);
+        vidGain = actx.createGain(); vidGain.gain.value = 0.35;
+        vidSrc.connect(vidGain);
+      }
+      const dest = actx.createMediaStreamDestination();
+      try { vidGain.disconnect(); } catch (e) {}
+      vidGain.connect(dest);
+      micNode = actx.createMediaStreamSource(mic);
+      micNode.connect(dest);
+      video.muted = false;                       // its sound now only goes into the recording
+      log('Match sound mixed under the voice (35%)');
+      return dest.stream.getAudioTracks()[0];
+    } catch (e) { log('Could not mix the match sound, voice only: ' + errMsg(e), 'w'); return null; }
+  }
+
   async function startRecording() {
     if (!view.captureStream || !window.MediaRecorder) { alert('This browser cannot record video from the page.'); return; }
+    prepareAudioContext();
     const prev = await getMeta('session').catch(() => null);
     if (prev && prev.state !== 'shared' && !confirm('Starting a new recording will delete the previous one. Continue?')) return;
 
@@ -719,11 +1348,12 @@
     if (st.quota && st.quota - st.usage < 3 * 1024 * MB) log('Less than 3 GB available for the app: long recordings may not fit', 'w');
 
     await Promise.all([clearStore('chunks'), clearStore('out'), ...['session', 'actions', 'export'].map(delMeta)]).catch(e => log('Clear storage failed: ' + errMsg(e), 'w'));
-    hideResult(); hideBanner();
+    hideResult(); hideBanner(); closeSheet(); lastStored = null; $('exportBtn').disabled = true;
     rawBlob = null;
 
     const stream = view.captureStream(RENDER_FPS);
-    micStream.getAudioTracks().forEach(t => stream.addTrack(t));
+    const mixed = prefs.matchAudio ? mixedAudioTrack(micStream) : null;
+    if (mixed) stream.addTrack(mixed); else micStream.getAudioTracks().forEach(t => stream.addTrack(t));
     const type = pickType();
     try {
       recorder = new MediaRecorder(stream, Object.assign(type ? { mimeType: type } : {}, { videoBitsPerSecond: videoBps(), audioBitsPerSecond: 128000, videoKeyFrameIntervalDuration: 1000 }));
@@ -769,11 +1399,11 @@
     keepAwake();
     saveMeta();
 
-    $('rec').textContent = '■ STOP';
+    $('rec').setAttribute('aria-label', 'Stop recording and export');
     $('rec').classList.add('recording');
-    $('recPause').disabled = false; $('recPause').textContent = '❚❚';
+    $('recPause').disabled = false; $('recPause').hidden = false; setIcon($('recPause'), 'pauseFill');
     $('recBadge').style.display = 'block'; $('recBadge').classList.remove('paused');
-    $('loadBtn').classList.add('disabled');
+    $('homeBtn').disabled = true;
     $('quality').disabled = true;
     recTimer = setInterval(() => {
       $('recBadge').textContent = `${recState === 'paused' ? '❚❚ PAUSED' : '● REC'} ${fmtRec(recElapsed())}`;
@@ -811,11 +1441,12 @@
     $('stall').style.display = 'none';
     releaseAwake();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
-    $('rec').textContent = '● REC';
+    if (micNode) { try { micNode.disconnect(); } catch (e) {} micNode = null; }
+    $('rec').setAttribute('aria-label', 'Start recording');
     $('rec').classList.remove('recording');
     $('recBadge').style.display = 'none';
-    $('recPause').disabled = true;
-    $('loadBtn').classList.remove('disabled');
+    $('recPause').disabled = true; $('recPause').hidden = true;
+    $('homeBtn').disabled = false;
     $('quality').disabled = false;
 
     await writeChain;                      // wait for the last chunks to be on disk
@@ -957,7 +1588,7 @@
   }
   function showResult(text) {
     $('resultText').textContent = text;
-    $('result').style.display = 'block';
+    $('result').style.display = 'block'; $('settings').style.display = 'none'; $('bmCard').style.display = 'none';
     openSheet();
   }
   function hideResult() {
@@ -978,7 +1609,7 @@
     $('resultText').className = isRaw ? 'warn' : '';
     $('save').disabled = false; $('saveFile').disabled = false;
     $('saveRaw').style.display = (DEBUG && rawBlob && !isRaw) ? '' : 'none';
-    $('result').style.display = 'block';
+    $('result').style.display = 'block'; $('settings').style.display = 'none'; $('bmCard').style.display = 'none';
     openSheet();
     setInfo(`last file ${mbs(blob.size)}`);
   }
@@ -1002,7 +1633,7 @@
     return true;
   }
   $('save').onclick = () => resultFile && shareFile(resultFile, resultUrl);
-  $('exportBtn').onclick = () => { if (resultFile) { $('result').style.display = 'block'; openSheet(); } };
+  $('exportBtn').onclick = () => { if (resultFile) { $('settings').style.display = 'none'; $('bmCard').style.display = 'none'; $('result').style.display = 'block'; openSheet(); } };
   $('saveFile').onclick = () => {
     if (!resultFile) return;
     log(`Save to Files requested: ${resultFile.name} · ${mbs(resultFile.size)}`);
@@ -1018,7 +1649,7 @@
   $('discard').onclick = async () => {
     if (!confirm('Delete this recording from the phone?')) return;
     hideResult();
-    rawBlob = null;
+    rawBlob = null; lastStored = null; $('exportBtn').disabled = true; closeSheet();
     await Promise.all(['chunks', 'out', 'meta'].map(clearStore)).catch(() => {});
     log('Recording deleted');
   };
@@ -1033,20 +1664,19 @@
       const exp = await getMeta('export').catch(() => null);
       const parts = await getAll('out').catch(() => []);
       if (!parts.length) return;
-      $('bannerText').textContent = `Your last video (${fmtRec(session.durationMs || 0)}) is still saved on this phone.`;
-      $('recover').textContent = 'Open it';
-      $('banner').style.display = 'block'; openSheet();
-      $('recover').onclick = async () => {
-        hideBanner();
+      // The last exported video is still on the phone: offer it on the home screen.
+      lastStored = async () => {
         const blob = await assembleOutput(exp && exp.patches, 'video/mp4');
         setResultFile(blob, session.durationMs, 'standard MP4 (restored)');
       };
+      $('lastBtn').hidden = !$('app').hidden;
+      log(`Last exported video available (${fmtRec(session.durationMs || 0)})`);
     } else {
       const chunks = await getAll('chunks').catch(() => []);
       if (!chunks.length) return;
       $('bannerText').textContent = `An unsaved recording was found (about ${fmtRec(session.durationMs || 0)}). It can be recovered.`;
       $('recover').textContent = 'Recover it';
-      $('banner').style.display = 'block'; openSheet();
+      $('banner').style.display = 'block'; $('settings').style.display = 'none'; $('bmCard').style.display = 'none'; openSheet();
       $('recover').onclick = () => { hideBanner(); log('Recovering previous recording'); finalizeFromStorage(); };
       log(`Found an unfinished recording: ${chunks.length} chunks`, 'w');
     }
@@ -1069,12 +1699,12 @@
       `Seeing Roundnet diagnostics · ${VERSION} · ${new Date().toISOString()}`,
       `URL: ${location.href}`,
       `User agent: ${navigator.userAgent}`,
-      `Screen: ${screen.width}×${screen.height} @${devicePixelRatio}x · standalone: ${!!(navigator.standalone || matchMedia('(display-mode: standalone)').matches)}`,
+      `Screen: ${screen.width}×${screen.height} @${devicePixelRatio}x · standalone: ${!!(navigator.standalone || matchMedia('(display-mode: standalone)').matches)} · left-handed: ${!!prefs.lefty}`,
       `Compat mode: ${COMPAT} · render fps: ${RENDER_FPS} · max side: ${maxSide} · bitrate: ${videoBps() / 1e6} Mbps`,
       `APIs: MediaRecorder=${!!window.MediaRecorder} captureStream=${!!view.captureStream} wakeLock=${'wakeLock' in navigator} VideoEncoder=${!!window.VideoEncoder} AudioEncoder=${!!window.AudioEncoder} rVFC=${'requestVideoFrameCallback' in HTMLVideoElement.prototype}`,
       `Recorder formats:\n${support}`,
       `Storage: ${st.text} · storage mode: ${blobMode}`,
-      `Video: ${video.videoWidth}×${video.videoHeight} · ${isFinite(video.duration) ? video.duration.toFixed(1) + ' s' : 'none'} · ≈${fps} fps`,
+      `Video: ${video.videoWidth}×${video.videoHeight} · ${isFinite(video.duration) ? video.duration.toFixed(1) + ' s' : 'none'} · ≈${fps} fps · drawings: ${strokes.length}`,
       `Last session: ${JSON.stringify(session)}`,
       `Actions recorded: ${actions.length}`,
       '',
@@ -1094,10 +1724,39 @@
     shareFile(file, URL.createObjectURL(file));
   };
 
+  // ---------------------------------------------------------------- new version check
+  // Every minute (and when coming back to the app), look at the version online. If it changed,
+  // offer to reload — never during a recording. A saved recording or video survives the reload.
+  let newVersion = null;
+  async function checkForUpdate() {
+    if (newVersion || !navigator.onLine) return;
+    try {
+      const r = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const m = (await r.text()).match(/const VERSION = '([^']+)'/);
+      if (m && m[1] !== VERSION) { newVersion = m[1]; log(`New version online: ${newVersion} (running ${VERSION})`); showUpdate(); }
+    } catch (e) { /* offline or blocked: try again later */ }
+  }
+  function showUpdate() {
+    if (!newVersion) return;
+    if (recState !== 'idle') { setTimeout(showUpdate, 5000); return; }   // wait until the recording is finished
+    $('updateText').textContent = `${newVersion} available`;
+    $('updateBar').style.display = 'flex';
+  }
+  $('updateReload').onclick = () => {
+    if (recState !== 'idle') return;
+    schedulePersistLog(true);
+    setTimeout(() => location.reload(), 150);
+  };
+  setInterval(checkForUpdate, 60000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+  setTimeout(checkForUpdate, 5000);
+
   // ---------------------------------------------------------------- start
   log(`${VERSION} · ${navigator.userAgent}`);
   log(`Recorder format: ${pickType() || 'none'} · wakeLock: ${'wakeLock' in navigator} · VideoEncoder: ${!!window.VideoEncoder} · AudioEncoder: ${!!window.AudioEncoder}`);
   setInfo();
+  enableEditing(false);
   (async () => {
     try {
       const old = await getMeta('log');
