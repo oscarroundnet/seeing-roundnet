@@ -337,7 +337,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 6';
+  const VERSION = 'v1.0 build 7';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -1334,7 +1334,7 @@
     if (!sessionId) return Promise.resolve();
     return setMeta('session', Object.assign({
       id: sessionId, state: recState === 'idle' ? 'stopped' : 'recording',
-      mime: recorder && recorder.mimeType || pickType(), chunkCount, bytes: recBytes,
+      mime: recorder && recorder.mimeType || pickType(), chunkCount, bytes: recBytes, segments: segIndex + 1,
       durationMs: Math.round(recElapsed()), width: view.width, height: view.height, version: VERSION
     }, extra || {})).then(() => setMeta('actions', { list: actions })).catch(e => log('Could not save session info: ' + errMsg(e), 'w'));
   }
@@ -1360,6 +1360,7 @@
       const dest = actx.createMediaStreamDestination();
       try { vidGain.disconnect(); } catch (e) {}
       vidGain.connect(dest);
+      if (micNode) { try { micNode.disconnect(); } catch (e) {} }
       micNode = actx.createMediaStreamSource(mic);
       micNode.connect(dest);
       video.muted = false;                       // its sound now only goes into the recording
@@ -1368,6 +1369,74 @@
     } catch (e) { log('Could not mix the match sound, voice only: ' + errMsg(e), 'w'); return null; }
   }
 
+  // A recording is made of one or more segments. If the phone stops delivering data (Safari
+  // can freeze the recorder after reloading a big video), a fresh recorder takes over as a new
+  // segment; the segments are joined back into one video at export.
+  let segIndex = 0, segRestarts = 0, kickedAt = 0, recStream = null;
+  function makeStream() {
+    const stream = view.captureStream(RENDER_FPS);
+    const mixed = prefs.matchAudio ? mixedAudioTrack(micStream) : null;
+    if (mixed) stream.addTrack(mixed); else micStream.getAudioTracks().forEach(t => stream.addTrack(t));
+    return stream;
+  }
+  function startSegment() {
+    const stream = makeStream();
+    const type = pickType();
+    let rec;
+    try {
+      rec = new MediaRecorder(stream, Object.assign(type ? { mimeType: type } : {}, { videoBitsPerSecond: videoBps(), audioBitsPerSecond: 128000, videoKeyFrameIntervalDuration: 1000 }));
+    } catch (e) {
+      log('MediaRecorder options refused (' + errMsg(e) + '), using defaults', 'w');
+      rec = new MediaRecorder(stream);
+    }
+    const seg = segIndex;
+    rec.ondataavailable = e => {
+      const nowT = performance.now();
+      if (!e.data || !e.data.size) { if (rec === recorder) emptyChunks++; return; }   // empty data does not count as recording
+      if (rec === recorder) {
+        if (recState === 'recording') maxGap = Math.max(maxGap, nowT - lastDataAt);
+        lastDataAt = nowT;
+        if (stallWarned) { stallWarned = false; kickedAt = 0; $('stall').style.display = 'none'; log('Recording data is flowing again'); }
+      }
+      const i = chunkCount++;
+      const blob = e.data;
+      recBytes += blob.size;
+      // Save every chunk to the phone's storage as soon as it arrives, in order.
+      writeChain = writeChain.then(() => putBlobRecord('chunks', { i, seg, blob })).catch(err => {
+        writeErrors++;
+        log(`Could not save chunk ${i}: ${errMsg(err)}`, 'e');
+      });
+    };
+    rec.onerror = e => log('Recorder error: ' + errMsg(e.error || e), 'e');
+    rec.onstop = () => {
+      if (rec !== recorder) { log(`Segment ${seg + 1} closed`); return; }
+      log(`Recorder stopped (${stopRequested ? 'by user' : 'unexpectedly'})`, stopRequested ? 'i' : 'w');
+      finishRecording(!stopRequested);
+    };
+    recorder = rec; recStream = stream;
+    rec.start(1000);
+    return rec;
+  }
+  function logTracks() {
+    try {
+      const t = recStream ? recStream.getTracks() : [];
+      log('Tracks: ' + t.map(x => `${x.kind} ${x.readyState}${x.muted ? ' muted' : ''}${x.enabled ? '' : ' disabled'}`).join(' · ') + ` · recorder ${recorder && recorder.state} · video readyState ${video.readyState}`, 'w');
+    } catch (e) {}
+  }
+  function restartSegment() {
+    const old = recorder;
+    segIndex++; segRestarts++;
+    log(`Starting a new recording segment (#${segIndex + 1}) to get past the stall`, 'w');
+    act('segment', { n: segIndex + 1 });
+    const oldVideo = recStream ? recStream.getVideoTracks() : [];
+    try { if (old && old.state !== 'inactive') old.stop(); } catch (e) {}
+    startSegment();
+    oldVideo.forEach(t => { try { t.stop(); } catch (e) {} });   // the old picture track only, never the microphone
+    lastDataAt = performance.now(); kickedAt = 0;
+    saveMeta();
+  }
+
+  if (params.has('test')) window.__sr = { restartSegment: () => restartSegment() };   // automated tests only
   async function startRecording() {
     if (!view.captureStream || !window.MediaRecorder) { alert('This browser cannot record video from the page.'); return; }
     prepareAudioContext();
@@ -1392,43 +1461,12 @@
     hideResult(); hideBanner(); closeSheet(); lastStored = null; $('exportBtn').disabled = true;
     rawBlob = null;
 
-    const stream = view.captureStream(RENDER_FPS);
-    const mixed = prefs.matchAudio ? mixedAudioTrack(micStream) : null;
-    if (mixed) stream.addTrack(mixed); else micStream.getAudioTracks().forEach(t => stream.addTrack(t));
-    const type = pickType();
-    try {
-      recorder = new MediaRecorder(stream, Object.assign(type ? { mimeType: type } : {}, { videoBitsPerSecond: videoBps(), audioBitsPerSecond: 128000, videoKeyFrameIntervalDuration: 1000 }));
-    } catch (e) {
-      log('MediaRecorder options refused (' + errMsg(e) + '), using defaults', 'w');
-      recorder = new MediaRecorder(stream);
-    }
-
     sessionId = Date.now().toString(36);
     chunkCount = 0; recBytes = 0; writeErrors = 0; writeChain = Promise.resolve(); stopRequested = false;
     actions = [];
     lastDataAt = performance.now(); maxGap = 0; stallWarned = false; emptyChunks = 0;
-    recorder.ondataavailable = e => {
-      const nowT = performance.now();
-      if (!e.data || !e.data.size) { emptyChunks++; return; }     // empty data does not count as recording
-      if (recState === 'recording') maxGap = Math.max(maxGap, nowT - lastDataAt);
-      lastDataAt = nowT;
-      if (stallWarned) { stallWarned = false; $('stall').style.display = 'none'; log('Recording data is flowing again'); }
-      const i = chunkCount++;
-      const blob = e.data;
-      recBytes += blob.size;
-      // Save every chunk to the phone's storage as soon as it arrives, in order.
-      writeChain = writeChain.then(() => putBlobRecord('chunks', { i, blob })).catch(err => {
-        writeErrors++;
-        log(`Could not save chunk ${i}: ${errMsg(err)}`, 'e');
-      });
-    };
-    recorder.onerror = e => log('Recorder error: ' + errMsg(e.error || e), 'e');
-    recorder.onstop = () => {
-      log(`Recorder stopped (${stopRequested ? 'by user' : 'unexpectedly'})`, stopRequested ? 'i' : 'w');
-      finishRecording(!stopRequested);
-    };
-
-    recorder.start(1000);
+    segIndex = 0; segRestarts = 0; kickedAt = 0;
+    startSegment();
     // Safari may hold the video in memory instead of giving it back every second: ask for it explicitly.
     flushTimer = setInterval(() => {
       if (recorder && recorder.state === 'recording') { try { recorder.requestData(); } catch (e) {} }
@@ -1452,12 +1490,19 @@
     metaTimer = setInterval(async () => {
       saveMeta();
       const gap = performance.now() - lastDataAt;
-      if (recState === 'recording' && gap > 6000 && !stallWarned) {
-        stallWarned = true;
-        recTrouble++;
-        log(`No recording data for ${(gap / 1000).toFixed(0)} s (recorder: ${recorder && recorder.state})`, 'e');
-        $('stall').textContent = '⚠︎ The phone stopped delivering the recording. Stop now to keep what was recorded, then send diagnostics.';
-        $('stall').style.display = 'block';
+      if (recState === 'recording' && gap > 6000) {
+        if (!stallWarned) {
+          stallWarned = true;
+          recTrouble++;
+          log(`No recording data for ${(gap / 1000).toFixed(0)} s (recorder: ${recorder && recorder.state})`, 'e');
+          logTracks();
+          $('stall').textContent = '⚠︎ The phone stopped delivering the recording. Restarting it… you can keep going.';
+          $('stall').style.display = 'block';
+          try { recorder.pause(); recorder.resume(); log('Tried to wake the recorder up (pause/resume)', 'w'); } catch (e) {}
+          kickedAt = performance.now();
+        } else if (kickedAt && performance.now() - kickedAt > 4000 && segRestarts < 10) {
+          restartSegment();
+        }
       }
       const st2 = await storageInfo();
       log(`rec ${fmtRec(recElapsed())} · ${chunkCount} chunks · ${mbs(recBytes)} · longest gap ${(maxGap / 1000).toFixed(1)} s · last data ${((performance.now() - lastDataAt) / 1000).toFixed(0)} s ago · empty ${emptyChunks} · ${recorder && recorder.state} · ${st2.text}${writeErrors ? ' · write errors: ' + writeErrors : ''}`);
@@ -1588,6 +1633,71 @@
     return assembleOutput(writer.patches, 'video/mp4');
   }
 
+  // Joins several recorded segments into one video, copying the compressed data (no re-encoding).
+  async function joinSegments(blobs, onProgress) {
+    const { Input, Output, ALL_FORMATS, BlobSource, StreamTarget, Mp4OutputFormat, WebMOutputFormat, EncodedPacketSink, EncodedVideoPacketSource, EncodedAudioPacketSource } = await loadMediabunny();
+    const segs = [];
+    for (let k = 0; k < blobs.length; k++) {
+      try {
+        const input = new Input({ source: new BlobSource(blobs[k]), formats: ALL_FORMATS });
+        const v = await input.getPrimaryVideoTrack(), a = await input.getPrimaryAudioTrack();
+        if (v) segs.push({ v, a, k }); else log(`Segment ${k + 1}: no picture, skipped`, 'w');
+      } catch (e) { log(`Segment ${k + 1} unreadable, skipped: ${errMsg(e)}`, 'w'); }
+    }
+    if (!segs.length) throw new Error('no readable segment');
+    const vCodec = segs[0].v.codec, aCodec = segs[0].a ? segs[0].a.codec : null;
+    const mp4 = ['avc', 'hevc', 'av1', 'vp9'].includes(vCodec) && (!aCodec || ['aac', 'opus', 'mp3'].includes(aCodec));
+    await clearStore('out');
+    const writer = new SpillWriter();
+    const writable = new WritableStream({ write: chunk => writer.write(chunk.data, chunk.position) });
+    const output = new Output({
+      format: mp4 ? new Mp4OutputFormat({ fastStart: false }) : new WebMOutputFormat(),
+      target: new StreamTarget(writable, { chunked: true, chunkSize: 4 * MB })
+    });
+    const vs = new EncodedVideoPacketSource(vCodec); output.addVideoTrack(vs);
+    let as = null;
+    if (aCodec) { as = new EncodedAudioPacketSource(aCodec); output.addAudioTrack(as); }
+    await output.start();
+    let offset = 0, firstV = true, firstA = true, firstDesc = null, joined = 0;
+    for (let n = 0; n < segs.length; n++) {
+      const { v, a, k } = segs[n];
+      if (v.codec !== vCodec) { log(`Segment ${k + 1}: different video format, skipped`, 'w'); continue; }
+      const vCfg = await v.getDecoderConfig();
+      const aCfg = a && as && a.codec === aCodec ? await a.getDecoderConfig() : null;
+      const d = vCfg && vCfg.description;
+      const desc = d ? Array.from(d instanceof ArrayBuffer ? new Uint8Array(d) : new Uint8Array(d.buffer, d.byteOffset, d.byteLength)).join(',') : '';
+      if (firstDesc === null) firstDesc = desc; else if (desc !== firstDesc) log(`Segment ${k + 1}: encoder settings differ from segment 1`, 'w');
+      const vSink = new EncodedPacketSink(v), aSink = aCfg ? new EncodedPacketSink(a) : null;
+      const fv = await vSink.getFirstPacket(), fa = aSink ? await aSink.getFirstPacket() : null;
+      if (!fv) { log(`Segment ${k + 1}: empty, skipped`, 'w'); continue; }
+      const base = Math.min(fv.timestamp, fa ? fa.timestamp : Infinity);
+      const vIt = vSink.packets()[Symbol.asyncIterator](), aIt = aSink ? aSink.packets()[Symbol.asyncIterator]() : null;
+      let vp = (await vIt.next()).value, ap = aIt ? (await aIt.next()).value : null, end = offset;
+      while (vp || ap) {                              // interleave both tracks by time
+        if (vp && (!ap || vp.timestamp <= ap.timestamp)) {
+          const ts = Math.max(0, vp.timestamp - base + offset);
+          await vs.add(vp.clone({ timestamp: ts }), firstV ? { decoderConfig: vCfg } : undefined);
+          firstV = false; end = Math.max(end, ts + vp.duration);
+          vp = (await vIt.next()).value;
+        } else {
+          const ts = Math.max(0, ap.timestamp - base + offset);
+          await as.add(ap.clone({ timestamp: ts }), firstA ? { decoderConfig: aCfg } : undefined);
+          firstA = false; end = Math.max(end, ts + ap.duration);
+          ap = (await aIt.next()).value;
+        }
+      }
+      log(`Segment ${k + 1} joined: ${(end - offset).toFixed(1)} s`);
+      offset = end + 0.001; joined++;
+      if (onProgress) onProgress((n + 1) / segs.length);
+    }
+    await output.finalize();
+    await writer.flush();
+    log(`Joined ${joined} segment(s): ${mbs(writer.end)} in ${writer.idx} parts, ${writer.patches.length} header patch(es)`);
+    const type = mp4 ? 'video/mp4' : 'video/webm';
+    await setMeta('export', { patches: writer.patches, size: writer.end, type });
+    return assembleOutput(writer.patches, type);
+  }
+
   async function finalizeFromStorage(durationMs) {
     showResult('Preparing video…');
     $('progress').style.display = ''; $('progress').value = 0;
@@ -1600,12 +1710,18 @@
     if (!records.length) { showResult('⚠︎ Nothing was recorded.'); return; }
     const missing = records.length && records[records.length - 1].i + 1 - records.length;
     if (missing) log(`${missing} chunk(s) missing in storage`, 'w');
-    rawBlob = new Blob(records.map(r => asBlob(r.blob)), { type: mime.split(';')[0] });
-    log(`Raw recording: ${mbs(rawBlob.size)} from ${records.length} chunks (${blobMode} mode)`);
+    const segIds = [...new Set(records.map(r => r.seg || 0))].sort((x, y) => x - y);
+    const segBlobs = segIds.map(id => new Blob(records.filter(r => (r.seg || 0) === id).map(r => asBlob(r.blob)), { type: mime.split(';')[0] }));
+    rawBlob = segBlobs[0];
+    log(`Raw recording: ${mbs(segBlobs.reduce((n, b) => n + b.size, 0))} from ${records.length} chunks in ${segBlobs.length} segment(s) (${blobMode} mode)`);
 
     const t = performance.now();
     try {
-      const mp4 = await toStandardMp4(rawBlob, p => {
+      const progress = p => {
+        $('progress').value = p;
+        $('resultText').textContent = `Preparing video… ${Math.round(p * 100)}%`;
+      };
+      const mp4 = segBlobs.length > 1 ? await joinSegments(segBlobs, progress) : await toStandardMp4(rawBlob, p => {
         $('progress').value = p;
         $('resultText').textContent = `Preparing video… ${Math.round(p * 100)}%`;
       });
