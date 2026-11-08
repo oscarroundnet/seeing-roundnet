@@ -126,6 +126,10 @@
   #rec { width:52px; height:52px; border-radius:50%; border:3px solid var(--fg); background:transparent; display:flex; align-items:center; justify-content:center; padding:0; }
   #rec i { display:block; width:26px; height:26px; border-radius:50%; background:var(--rec); transition:all .15s; }
   #rec.recording i { width:18px; height:18px; border-radius:4px; }
+  #rec.confirm { border-color:var(--rec); background:rgba(255,59,48,.18); }
+  #recPause { border:2px solid var(--rec) !important; background:transparent !important; color:var(--rec) !important; border-radius:50% !important; width:44px !important; height:44px; }
+  #recPause.paused { background:var(--rec) !important; color:#fff !important; animation:pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity:.55; } }
 
   @media (orientation:landscape) and (max-height:560px) {
     #app { grid-template-columns:1fr var(--side); grid-template-rows:auto 1fr auto; grid-template-areas:"stage head" "stage tools" "bar tools"; }
@@ -291,6 +295,10 @@
   </div>
   <div id="result" class="card">
     <p id="resultText"></p>
+    <div id="qualityWarn" hidden>
+      <p class="warn">This phone struggled to record in 1080p (the video had to be reloaded or the recording paused for a few seconds). For long analyses on this phone, 720p is safer.</p>
+      <button id="to720" class="main">Switch to 720p</button>
+    </div>
     <progress id="progress" max="1" value="0"></progress>
     <video id="preview" playsinline controls></video>
     <button id="save" class="main">Share video</button>
@@ -329,7 +337,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 3';
+  const VERSION = 'v1.0 build 6';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -360,7 +368,7 @@
     next: '<path d="M18 5v14M6 6l8 6-8 6z"/>',
     playFill: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
     pauseFill: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
-    recDot: '<circle cx="12" cy="12" r="7" fill="#FF3B30" stroke="none"/>',
+    recDot: '<circle cx="12" cy="12" r="7" fill="currentColor" stroke="none"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
     film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>'
@@ -583,7 +591,7 @@
     if (!f) return;
     if (recState !== 'idle') { alert('Stop the recording before loading another video.'); return; }
     if (video.src) URL.revokeObjectURL(video.src);
-    videoKey = `${f.name || 'video'}|${f.size}`;
+    videoKey = `${f.name || 'video'}|${f.size}`; currentFileSize = f.size; bigWarned = false;
     log(`Loading ${f.name || 'video'} · ${mbs(f.size)} · ${f.type || 'unknown type'}`);
     fpsSamples = []; fps = 30; fpsMeasured = false; fileLoadId++; frameValid = false; resetZoom();
     enableEditing(false);
@@ -601,10 +609,11 @@
     if (!w || !h) return null;
     const s = Math.min(1, maxSide / Math.max(w, h));
     const ow = Math.round(w * s / 2) * 2, oh = Math.round(h * s / 2) * 2;   // even sizes for H.264
-    if (view.width === ow && view.height === oh && frame.width === ow) { fitStage(); return { w, h, ow, oh }; }
+    if (view.width === ow && view.height === oh && frame.width === Math.round(ow / 2)) { fitStage(); return { w, h, ow, oh }; }
     const oldInk = ink.width ? { w: ink.width, h: ink.height } : null;
-    view.width = ink.width = frame.width = ow;
-    view.height = ink.height = frame.height = oh;
+    view.width = ink.width = ow;
+    view.height = ink.height = oh;
+    frame.width = Math.round(ow / 2); frame.height = Math.round(oh / 2);   // spare frame at half size: 4× less memory
     if (oldInk && (oldInk.w !== ow)) {            // keep drawings in place when the quality changes
       const k = ow / oldInk.w;
       strokes.forEach(st => { st.w = Math.max(2, st.w * k); if (st.fs) st.fs *= k; st.pts = st.pts.map(p => [p[0] * k, p[1] * k]); });
@@ -626,6 +635,10 @@
   if (window.ResizeObserver) new ResizeObserver(fitStage).observe($('stageWrap'));
   window.addEventListener('resize', fitStage);
   $('quality').value = String(maxSide <= 1280 ? 1280 : 1920);
+  $('to720').onclick = () => {
+    $('quality').value = '1280'; $('quality').onchange();
+    $('qualityWarn').hidden = true; hint('720p selected for the next recordings', 2500);
+  };
   $('quality').onchange = () => {
     if (recState !== 'idle') { $('quality').value = String(maxSide <= 1280 ? 1280 : 1920); return; }
     maxSide = +$('quality').value;
@@ -635,6 +648,7 @@
     setInfo();
   };
 
+  let currentFileSize = 0, bigWarned = false, recTrouble = 0;
   let fileLoadId = 0, setUpFor = -1, lastGoodTime = 0, wasPlaying = false, reloads = 0;
   video.addEventListener('loadedmetadata', () => {
     if (!video.videoWidth || !video.videoHeight) { log('Video has no picture size', 'e'); return; }
@@ -642,6 +656,7 @@
       // Same file, reloaded by Safari (it unloads big videos under memory pressure).
       // Keep everything as it was: position, drawings, output size, recording.
       reloads++;
+      if (recState !== 'idle') recTrouble++;
       log(`Safari reloaded the video (#${reloads}) → back to ${fmtT(lastGoodTime)}${wasPlaying ? ', resuming playback' : ''}`, 'w');
       video.currentTime = lastGoodTime;
       if (wasPlaying) video.play().catch(e => log('Could not resume playback: ' + errMsg(e), 'w'));
@@ -656,6 +671,10 @@
     video.currentTime = 0.001;   // makes iOS decode the first frame
     enableEditing(true);
     log(`Video ready: ${w}×${h} (${w >= h ? 'landscape' : 'portrait'}), ${video.duration.toFixed(1)} s → output ${ow}×${oh}`);
+    if (!bigWarned && maxSide > 1280 && /iPhone|iPad|Android/.test(navigator.userAgent) && (currentFileSize > 300 * MB || Math.max(w, h) > 1920)) {
+      bigWarned = true;
+      hint('Big video: if a long recording stutters, switch to 720p in Settings (•••)', 6000);
+    }
     setInfo();
   });
 
@@ -718,14 +737,14 @@
       // Draw the video straight onto the canvas (one copy only). Keep a spare copy of the
       // picture now and then, to show if Safari briefly has no frame ready (no black flashes).
       ctx.drawImage(video, 0, 0, W, H);
-      if (!frameValid || (video.paused && video.currentTime !== lastFrameTime) || ++cacheAge >= 15) {
-        fctx.drawImage(video, 0, 0, W, H); cacheAge = 0;
+      if (!frameValid || (video.paused && video.currentTime !== lastFrameTime) || ++cacheAge >= 30) {
+        fctx.drawImage(video, 0, 0, frame.width, frame.height); cacheAge = 0;
         frameValid = true; lastFrameTime = video.currentTime;
       }
       if (video.currentTime > 0.01) lastGoodTime = video.currentTime;
       wasPlaying = !video.paused;
     } else if (frameValid) {
-      ctx.drawImage(frame, 0, 0);
+      ctx.drawImage(frame, 0, 0, W, H);
       if (++blankFrames % 30 === 1) log(`Video frame not ready (readyState ${video.readyState}), keeping last frame`, 'w');
     } else {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1279,7 +1298,15 @@
   window.addEventListener('pagehide', () => { if (recState !== 'idle') { log('pagehide during recording', 'w'); saveMeta(); } });
 
   // ---------------------------------------------------------------- recording
-  $('rec').onclick = () => (recState === 'recording' || recState === 'paused') ? stopRecording() : startRecording();
+  // Stopping ends the recording for good, so it takes two taps: the first one asks to confirm.
+  let stopArmed = null;
+  $('rec').onclick = () => {
+    if (recState !== 'recording' && recState !== 'paused') { startRecording(); return; }
+    if (stopArmed) { clearTimeout(stopArmed); stopArmed = null; $('rec').classList.remove('confirm'); hint(''); stopRecording(); return; }
+    $('rec').classList.add('confirm');
+    hint('Tap ■ again to stop and export · ❚❚ only pauses', 3000);
+    stopArmed = setTimeout(() => { stopArmed = null; $('rec').classList.remove('confirm'); }, 3000);
+  };
   $('recPause').onclick = () => {
     if (!recorder) return;
     if (recState === 'recording') {
@@ -1288,7 +1315,8 @@
       videoPlayingAtRecPause = !video.paused;
       if (videoPlayingAtRecPause) video.pause();             // Scott: pausing the recording pauses the video too
       act('recPause');
-      setIcon($('recPause'), 'recDot'); $('recPause').setAttribute('aria-label', 'Resume recording');
+      setIcon($('recPause'), 'recDot'); $('recPause').setAttribute('aria-label', 'Resume recording'); $('recPause').classList.add('paused');
+      hint('Recording paused · tap ● to resume', 3000);
       $('recBadge').classList.add('paused');
     } else if (recState === 'paused') {
       try { recorder.resume(); } catch (e) { log('resume() failed: ' + errMsg(e), 'w'); return; }
@@ -1297,7 +1325,7 @@
       lastDataAt = performance.now();   // no data is expected while paused
       act('recResume');
       if (videoPlayingAtRecPause) video.play().catch(() => {});   // and resuming plays it again
-      setIcon($('recPause'), 'pauseFill'); $('recPause').setAttribute('aria-label', 'Pause recording');
+      setIcon($('recPause'), 'pauseFill'); $('recPause').setAttribute('aria-label', 'Pause recording'); $('recPause').classList.remove('paused');
       $('recBadge').classList.remove('paused');
     }
   };
@@ -1406,7 +1434,7 @@
       if (recorder && recorder.state === 'recording') { try { recorder.requestData(); } catch (e) {} }
     }, 2000);
     recState = 'recording';
-    recStart = performance.now(); recPausedTotal = 0;
+    recStart = performance.now(); recPausedTotal = 0; recTrouble = 0; $('qualityWarn').hidden = true;
     act('recStart', { fps, w: view.width, h: view.height });
     log(`Recording started · ${recorder.mimeType || type || 'default format'} · ${view.width}×${view.height} @${RENDER_FPS}fps · ${(videoBps() / 1e6).toFixed(1)} Mbps`);
     keepAwake();
@@ -1426,6 +1454,7 @@
       const gap = performance.now() - lastDataAt;
       if (recState === 'recording' && gap > 6000 && !stallWarned) {
         stallWarned = true;
+        recTrouble++;
         log(`No recording data for ${(gap / 1000).toFixed(0)} s (recorder: ${recorder && recorder.state})`, 'e');
         $('stall').textContent = '⚠︎ The phone stopped delivering the recording. Stop now to keep what was recorded, then send diagnostics.';
         $('stall').style.display = 'block';
@@ -1458,7 +1487,7 @@
     $('rec').setAttribute('aria-label', 'Start recording');
     $('rec').classList.remove('recording');
     $('recBadge').style.display = 'none';
-    $('recPause').disabled = true; $('recPause').hidden = true;
+    $('recPause').disabled = true; $('recPause').hidden = true; $('recPause').classList.remove('paused');
     $('homeBtn').disabled = false;
     $('quality').disabled = false;
 
@@ -1587,6 +1616,7 @@
       await clearStore('chunks').catch(() => {});    // free space: the converted file is kept
       rawBlob = null;
       setResultFile(mp4, durationMs, `standard MP4 · ready in ${secs.toFixed(1)} s`);
+      if (recTrouble && maxSide > 1280) { $('qualityWarn').hidden = false; log(`1080p trouble during this recording (${recTrouble} event(s)): 720p suggested`, 'w'); }
     } catch (e) {
       log('Conversion failed: ' + (e && e.stack || errMsg(e)), 'e');
       setResultFile(rawBlob, durationMs, '⚠︎ not converted: ' + errMsg(e), true);
