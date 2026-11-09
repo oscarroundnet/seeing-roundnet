@@ -337,7 +337,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 8';
+  const VERSION = 'v1.0 build 9';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -1271,20 +1271,47 @@
   });
 
   // ---------------------------------------------------------------- screen wake lock
+  // If the system refuses the wake lock (iPhone in Low Power Mode, for example), a tiny silent
+  // video playing in a loop keeps the screen from going to sleep during the recording.
+  let awakeVideo = null;
+  function startAwakeVideo() {
+    try {
+      if (!awakeVideo) {
+        awakeVideo = document.createElement('video');
+        awakeVideo.setAttribute('playsinline', ''); awakeVideo.muted = true; awakeVideo.loop = true;
+        awakeVideo.src = awakeVideo.canPlayType('video/mp4; codecs="avc1.42E01E"') ? 'data:video/mp4;base64,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' : 'data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAALCEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggKs7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECPQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYgj7XI8U/GXCZyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhAX14QDgibCBQLqBQJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYgj7XI8U/GXCWfIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDEuMDAwMDAwMDAwAB9DtnVBB+eBAKOqgQAAgPACAJ0BKkAAQAAARwiFhYiFhIgCAgAGcDxCYAqyIPcwAP7/q1CAo5aBAGQA0QEAARAQABgAGFgv9AAIjoAAo5aBAMgA0QEAARAQABgAGFgv9AAIjoAAo5aBASwA0QEAARAQABgAGFgv9AAIjoAAo5aBAZAA0QEAARAQABgAGFgv9AAIjoAAo5aBAfQA0QEAARAQABgAGFgv9AAIjoAAo5aBAlgA0QEAARAQABgAGFgv9AAIjoAAo5aBArwA0QEAARAQFGAAYWC/0AAiOgAAo5aBAyAA0QEAARAQABgAGFgv9AAIjoAAo5aBA4QA0QEAARAQABgAGFgv9AAIjoAAHFO7a5G7j7OBALeK94EB8YIBn/CBAw==';
+        awakeVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0';
+        document.body.appendChild(awakeVideo);
+      }
+      awakeVideo.play().then(() => log('Keep-awake video playing (fallback)')).catch(e => log('Keep-awake video refused: ' + errMsg(e), 'w'));
+    } catch (e) {}
+  }
   async function keepAwake() {
-    if (!('wakeLock' in navigator)) { log('Wake Lock not supported: set Auto-Lock to Never during long recordings', 'w'); return; }
+    if (!('wakeLock' in navigator)) { log('Wake Lock not supported: keep-awake video used instead', 'w'); startAwakeVideo(); return; }
     try {
       wakeLock = await navigator.wakeLock.request('screen');
       log('Screen wake lock on');
       wakeLock.addEventListener('release', () => log('Screen wake lock released'));
-    } catch (e) { log('Wake lock refused: ' + errMsg(e), 'w'); }
+    } catch (e) { log('Wake lock refused: ' + errMsg(e) + ' → keep-awake video instead', 'w'); startAwakeVideo(); }
   }
-  function releaseAwake() { try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; }
+  function releaseAwake() {
+    try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
+    try { if (awakeVideo) awakeVideo.pause(); } catch (e) {}
+  }
 
   document.addEventListener('visibilitychange', () => {
     log(`Page ${document.visibilityState}${recState !== 'idle' ? ` (recorder: ${recorder && recorder.state})` : ''}`, recState !== 'idle' && document.hidden ? 'w' : 'i');
+    if (document.hidden && recState === 'recording') {
+      autoPaused = true;
+      $('recPause').click();
+      log('Recording paused automatically: the app went to the background', 'w');
+    }
     if (document.visibilityState === 'visible' && (recState === 'recording' || recState === 'paused')) {
       if (!wakeLock) keepAwake();
+      if (autoPaused && recState === 'paused') {
+        $('stall').textContent = 'Recording paused while the app was in the background. Tap ● to resume.';
+        $('stall').style.display = 'block';
+      }
       if (recorder && recorder.state === 'inactive') {
         log('Recorder stopped while the app was in the background: saving what was recorded', 'w');
         finishRecording(true);
@@ -1295,7 +1322,7 @@
 
   // ---------------------------------------------------------------- recording
   // Stopping ends the recording for good, so it takes two taps: the first one asks to confirm.
-  let stopArmed = null;
+  let stopArmed = null, autoPaused = false;
   $('rec').onclick = () => {
     if (recState !== 'recording' && recState !== 'paused') { startRecording(); return; }
     if (stopArmed) { clearTimeout(stopArmed); stopArmed = null; $('rec').classList.remove('confirm'); hint(''); stopRecording(); return; }
@@ -1322,6 +1349,7 @@
       act('recResume');
       if (videoPlayingAtRecPause) video.play().catch(() => {});   // and resuming plays it again
       setIcon($('recPause'), 'pauseFill'); $('recPause').setAttribute('aria-label', 'Pause recording'); $('recPause').classList.remove('paused');
+      if (autoPaused) { autoPaused = false; $('stall').style.display = 'none'; }
       $('recBadge').classList.remove('paused');
     }
   };
@@ -1667,20 +1695,25 @@
       const fv = await vSink.getFirstPacket(), fa = aSink ? await aSink.getFirstPacket() : null;
       if (!fv) { log(`Segment ${k + 1}: empty, skipped`, 'w'); continue; }
       const base = Math.min(fv.timestamp, fa ? fa.timestamp : Infinity);
+      let prevRawV = null, prevRawA = null;
       const vIt = vSink.packets()[Symbol.asyncIterator](), aIt = aSink ? aSink.packets()[Symbol.asyncIterator]() : null;
       let vp = (await vIt.next()).value, ap = aIt ? (await aIt.next()).value : null, end = offset;
       while (vp || ap) {                              // interleave both tracks by time
         if (vp && (!ap || vp.timestamp <= ap.timestamp)) {
-          let ts = Math.max(0, vp.timestamp - base + offset);
-          if (ts <= lastV) { ts = lastV + 0.001; fixes++; }   // never go back in time
-          lastV = ts;
+          // Timeline rebuilt from the gaps between packets: a broken timestamp (backwards, or
+          // absurdly far ahead) only costs one frame instead of breaking the whole video.
+          let ts;
+          if (prevRawV === null) ts = Math.max(lastV + 0.001, vp.timestamp - base + offset);
+          else { let dt = vp.timestamp - prevRawV; if (!(dt > 0 && dt <= 2)) { dt = 1 / 30; fixes++; } ts = lastV + dt; }
+          prevRawV = vp.timestamp; lastV = ts;
           await vs.add(vp.clone({ timestamp: ts }), firstV ? { decoderConfig: vCfg } : undefined);
           firstV = false; end = Math.max(end, ts + vp.duration);
           vp = (await vIt.next()).value;
         } else {
-          let ts = Math.max(0, ap.timestamp - base + offset);
-          if (ts <= lastA) { ts = lastA + 0.001; fixes++; }
-          lastA = ts;
+          let ts;
+          if (prevRawA === null) ts = Math.max(lastA + 0.001, ap.timestamp - base + offset);
+          else { let dt = ap.timestamp - prevRawA; if (!(dt > 0 && dt <= 2)) { dt = ap.duration || 0.021; fixes++; } ts = lastA + dt; }
+          prevRawA = ap.timestamp; lastA = ts;
           await as.add(ap.clone({ timestamp: ts }), firstA ? { decoderConfig: aCfg } : undefined);
           firstA = false; end = Math.max(end, ts + ap.duration);
           ap = (await aIt.next()).value;
