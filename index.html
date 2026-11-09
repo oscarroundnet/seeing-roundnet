@@ -337,7 +337,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 7';
+  const VERSION = 'v1.0 build 8';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -502,7 +502,6 @@
 
   // ---------------------------------------------------------------- canvas + state
   const video = $('video'), view = $('view'), ctx = view.getContext('2d');
-  const ink = document.createElement('canvas'), ictx = ink.getContext('2d');
   const frame = document.createElement('canvas'), fctx = frame.getContext('2d');   // last good video frame
   let frameValid = false, lastFrameTime = -1, blankFrames = 0;
   let strokes = [], current = null, pendingAngle = null, textPending = null, runningTimer = null;
@@ -610,12 +609,12 @@
     const s = Math.min(1, maxSide / Math.max(w, h));
     const ow = Math.round(w * s / 2) * 2, oh = Math.round(h * s / 2) * 2;   // even sizes for H.264
     if (view.width === ow && view.height === oh && frame.width === Math.round(ow / 2)) { fitStage(); return { w, h, ow, oh }; }
-    const oldInk = ink.width ? { w: ink.width, h: ink.height } : null;
-    view.width = ink.width = ow;
-    view.height = ink.height = oh;
+    const oldW = view.width || 0;
+    view.width = ow;
+    view.height = oh;
     frame.width = Math.round(ow / 2); frame.height = Math.round(oh / 2);   // spare frame at half size: 4× less memory
-    if (oldInk && (oldInk.w !== ow)) {            // keep drawings in place when the quality changes
-      const k = ow / oldInk.w;
+    if (oldW && oldW !== ow) {                    // keep drawings in place when the quality changes
+      const k = ow / oldW;
       strokes.forEach(st => { st.w = Math.max(2, st.w * k); if (st.fs) st.fs *= k; st.pts = st.pts.map(p => [p[0] * k, p[1] * k]); });
     }
     redrawInk(); frameValid = false; resetZoom();
@@ -660,6 +659,10 @@
       log(`Safari reloaded the video (#${reloads}) → back to ${fmtT(lastGoodTime)}${wasPlaying ? ', resuming playback' : ''}`, 'w');
       video.currentTime = lastGoodTime;
       if (wasPlaying) video.play().catch(e => log('Could not resume playback: ' + errMsg(e), 'w'));
+      if (recState === 'recording' && segRestarts < 30) {
+        // After a reload the iPhone recorder stops delivering data: start a fresh one straight away.
+        setTimeout(() => { if (recState === 'recording') { log('Fresh recorder after the reload'); restartSegment(); } }, 800);
+      }
       return;
     }
     setUpFor = fileLoadId; reloads = 0; lastGoodTime = 0; wasPlaying = false;
@@ -751,8 +754,9 @@
       ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
       ctx.setTransform(Z.s, 0, 0, Z.s, Z.x, Z.y);
     }
-    ctx.drawImage(ink, 0, 0);
-    for (const s of strokes) if (s.tool === 'timer') drawTimer(s, ctx);   // timers change with the video: drawn live
+    // Drawings are painted straight onto the picture every frame (no extra full-size layer to keep in memory).
+    for (const s of strokes) { if (s.tool === 'timer') drawTimer(s, ctx); else drawStroke(s, ctx); }
+    if (current && !current.tap) drawStroke(current, ctx);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
   function loop(now) {
@@ -962,12 +966,7 @@
     }
     c.restore();
   }
-  function redrawInk() {
-    dirty = true;
-    ictx.clearRect(0, 0, ink.width, ink.height);
-    strokes.forEach(s => drawStroke(s, ictx));
-    if (current && !current.tap) drawStroke(current, ictx);
-  }
+  function redrawInk() { dirty = true; }
   if (document.fonts && document.fonts.load) document.fonts.load('700 20px Montserrat').then(redrawInk).catch(() => {});
 
   function newShape(t, p) {
@@ -1024,10 +1023,7 @@
     if (!current || current.tap || !pointers.has(e.pointerId)) return;
     const p = pos(e);
     if (current.tool === 'pen') {
-      const q = current.pts[current.pts.length - 1];
       current.pts.push(p);
-      ictx.strokeStyle = current.color; ictx.lineWidth = current.w; ictx.lineCap = 'round'; ictx.lineJoin = 'round';
-      ictx.beginPath(); ictx.moveTo(q[0], q[1]); ictx.lineTo(p[0], p[1]); ictx.stroke();
       dirty = true;
       return;
     }
@@ -1500,7 +1496,7 @@
           $('stall').style.display = 'block';
           try { recorder.pause(); recorder.resume(); log('Tried to wake the recorder up (pause/resume)', 'w'); } catch (e) {}
           kickedAt = performance.now();
-        } else if (kickedAt && performance.now() - kickedAt > 4000 && segRestarts < 10) {
+        } else if (kickedAt && performance.now() - kickedAt > 4000 && segRestarts < 30) {
           restartSegment();
         }
       }
@@ -1658,7 +1654,7 @@
     let as = null;
     if (aCodec) { as = new EncodedAudioPacketSource(aCodec); output.addAudioTrack(as); }
     await output.start();
-    let offset = 0, firstV = true, firstA = true, firstDesc = null, joined = 0;
+    let offset = 0, firstV = true, firstA = true, firstDesc = null, joined = 0, lastV = -1, lastA = -1, fixes = 0;
     for (let n = 0; n < segs.length; n++) {
       const { v, a, k } = segs[n];
       if (v.codec !== vCodec) { log(`Segment ${k + 1}: different video format, skipped`, 'w'); continue; }
@@ -1675,12 +1671,16 @@
       let vp = (await vIt.next()).value, ap = aIt ? (await aIt.next()).value : null, end = offset;
       while (vp || ap) {                              // interleave both tracks by time
         if (vp && (!ap || vp.timestamp <= ap.timestamp)) {
-          const ts = Math.max(0, vp.timestamp - base + offset);
+          let ts = Math.max(0, vp.timestamp - base + offset);
+          if (ts <= lastV) { ts = lastV + 0.001; fixes++; }   // never go back in time
+          lastV = ts;
           await vs.add(vp.clone({ timestamp: ts }), firstV ? { decoderConfig: vCfg } : undefined);
           firstV = false; end = Math.max(end, ts + vp.duration);
           vp = (await vIt.next()).value;
         } else {
-          const ts = Math.max(0, ap.timestamp - base + offset);
+          let ts = Math.max(0, ap.timestamp - base + offset);
+          if (ts <= lastA) { ts = lastA + 0.001; fixes++; }
+          lastA = ts;
           await as.add(ap.clone({ timestamp: ts }), firstA ? { decoderConfig: aCfg } : undefined);
           firstA = false; end = Math.max(end, ts + ap.duration);
           ap = (await aIt.next()).value;
@@ -1692,6 +1692,7 @@
     }
     await output.finalize();
     await writer.flush();
+    if (fixes) log(`${fixes} timestamp(s) adjusted while joining`, 'w');
     log(`Joined ${joined} segment(s): ${mbs(writer.end)} in ${writer.idx} parts, ${writer.patches.length} header patch(es)`);
     const type = mp4 ? 'video/mp4' : 'video/webm';
     await setMeta('export', { patches: writer.patches, size: writer.end, type });
