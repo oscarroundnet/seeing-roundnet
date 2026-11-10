@@ -91,7 +91,7 @@
   body.lefty .grp { flex-direction:row; }
   body.lefty #leftRail { left:auto; right:calc(env(safe-area-inset-right) + 10px); align-items:flex-end; }
   /* tools in a bottom corner (dragged there, or chosen in Settings) */
-  body.tbottom #tools { top:auto; bottom:calc(var(--barH, 110px) + 10px); }
+  body.tbottom #tools { top:auto; bottom:calc(var(--barH, 110px) + env(safe-area-inset-bottom) + 12px); }
   body.tbottom.lefty #leftRail { left:calc(env(safe-area-inset-left) + 10px); right:auto; align-items:flex-start; }
   #tools.dragging { transition:none; opacity:.85; z-index:30; }
   #tools.dragging .opts { display:none !important; }
@@ -353,7 +353,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 12';
+  const VERSION = 'v1.0 build 13';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -1411,12 +1411,14 @@
   // ---------------------------------------------------------------- recording
   // Stopping ends the recording for good, so it takes two taps: the first one asks to confirm.
   let stopArmed = null, autoPaused = false;
+  // First tap on stop pauses the recording (and the video); a second tap stops and exports.
   $('rec').onclick = () => {
     if (recState !== 'recording' && recState !== 'paused') { startRecording(); return; }
-    if (stopArmed) { clearTimeout(stopArmed); stopArmed = null; $('rec').classList.remove('confirm'); hint(''); stopRecording(); return; }
+    if (stopArmed) { stopArmed = null; $('rec').classList.remove('confirm'); hint(''); stopRecording(); return; }
+    if (recState === 'recording') $('recPause').click();
+    stopArmed = true;
     $('rec').classList.add('confirm');
-    hint('Tap ■ again to stop and export · ❚❚ only pauses', 3000);
-    stopArmed = setTimeout(() => { stopArmed = null; $('rec').classList.remove('confirm'); }, 3000);
+    hint('Recording paused · tap ■ again to stop and export, or ● to resume', 4000);
   };
   $('recPause').onclick = () => {
     if (!recorder) return;
@@ -1433,9 +1435,10 @@
       try { recorder.resume(); } catch (e) { log('resume() failed: ' + errMsg(e), 'w'); return; }
       recPausedTotal += performance.now() - recPausedAt;
       recState = 'recording';
+      if (stopArmed) { stopArmed = null; $('rec').classList.remove('confirm'); }
       lastDataAt = performance.now();   // no data is expected while paused
       act('recResume');
-      if (videoPlayingAtRecPause) video.play().catch(() => {});   // and resuming plays it again
+      video.play().catch(e => log('Could not play the video on resume: ' + errMsg(e), 'w'));   // Scott: resuming plays the video again
       setIcon($('recPause'), 'pauseFill'); $('recPause').setAttribute('aria-label', 'Pause recording'); $('recPause').classList.remove('paused');
       if (autoPaused) { autoPaused = false; $('stall').style.display = 'none'; }
       $('recBadge').classList.remove('paused');
