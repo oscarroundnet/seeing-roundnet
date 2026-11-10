@@ -45,6 +45,13 @@
              display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; }
   .secondary { height:52px; border:1px solid var(--azure); border-radius:14px; background:rgba(11,33,45,.88); font-size:15px;
                display:flex; align-items:center; justify-content:center; gap:10px; }
+  .foot.tip { color:var(--soft); line-height:1.4; max-width:340px; margin:0 auto; }
+  #picking { position:fixed; inset:0; z-index:60; background:rgba(5,17,23,.92); display:flex; align-items:center; justify-content:center; padding:24px; text-align:center; }
+  #picking[hidden] { display:none; }
+  #picking > div { max-width:340px; }
+  #picking .h { font-weight:700; font-size:18px; margin:0 0 8px; }
+  #picking p { color:var(--soft); font-size:14px; line-height:1.45; }
+  #picking button { padding:0 22px; margin-top:8px; }
   .foot { margin:4px 0 0; text-align:center; font-size:12px; color:var(--muted); font-weight:500; }
   .link { background:none; padding:0; font-size:12px; color:var(--accent); font-weight:600; text-decoration:underline; }
   @media (orientation:landscape) and (max-height:560px) {
@@ -118,6 +125,8 @@
   .bmItem .chips { margin:0; }
   .bmItem .chip { min-height:24px !important; padding:2px 9px !important; font-size:12px !important; }
   #bmEmpty { color:var(--muted); font-size:13px; }
+  .bmAuto { color:var(--muted); font-size:12px; margin:-4px 0 10px; }
+  #bmQuick .chip { min-height:44px; padding:6px 14px; font-size:15px; }
   .crow { display:flex; align-items:center; gap:6px; }
   .crow .ib { width:40px; }
   #speed { min-width:58px !important; padding:0 8px !important; }
@@ -210,10 +219,13 @@
       <label class="primary" for="file" id="loadBtn"><span data-icon="plus" data-size="20"></span>Load a video</label>
       <button class="secondary" id="resumeBtn" hidden><span data-icon="playFill" data-size="18"></span>Back to current video</button>
       <button class="secondary" id="lastBtn" hidden><span data-icon="film" data-size="18"></span>Open last exported video</button>
+      <p class="foot tip">Long video in iCloud? In Photos, Share › Save to Files first, then pick it here with Choose File: it loads much faster.</p>
       <p class="foot"><span id="verHome"></span> · Nothing is uploaded · <button class="link" id="settingsHome">Settings</button></p>
     </div>
   </div>
 </div>
+
+<div id="picking" hidden><div><p class="h">Getting your video…</p><p>Long videos stored in iCloud can take a few minutes. Keep Seeing Roundnet open until it appears.</p><button class="secondary" id="pickingClose">Hide</button></div></div>
 
 <div id="app" hidden>
   <header>
@@ -331,10 +343,14 @@
       <div class="chips" id="bmTags"></div>
       <div class="newtag"><input id="bmNewTag" placeholder="New tag" maxlength="24" autocomplete="off"><button id="bmNewTagBtn">Add tag</button></div>
       <textarea id="bmNote" placeholder="Note (optional)"></textarea>
-      <button class="main" id="bmSave">Save</button><button id="bmCancel">Cancel</button><button id="bmDelete">Delete</button>
+      <p class="bmAuto">Changes are saved as you go.</p>
+      <button class="main" id="bmSave">Done</button><button id="bmDelete">Delete</button>
     </div>
     <div id="bmListBox">
-      <button class="main" id="bmAddHere">+ Bookmark this moment</button>
+      <p id="bmQuickT" style="font-weight:700;margin:0 0 6px"></p>
+      <div class="chips" id="bmQuick"></div>
+      <button id="bmAddHere">Several tags or a note…</button>
+      <p class="ct" style="margin-top:14px">Saved bookmarks</p>
       <div class="chips" id="bmFilter"></div>
       <div id="bmItems"></div>
     </div>
@@ -355,7 +371,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 14';
+  const VERSION = 'v1.0 build 15';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -623,7 +639,14 @@
   };
 
   // ---------------------------------------------------------------- load video
+  // While iOS fetches a long video from Photos / iCloud, nothing happens on screen: say so.
+  let picking = false;
+  const hidePicking = () => { picking = false; $('picking').hidden = true; };
+  $('loadBtn').addEventListener('click', () => { picking = true; setTimeout(() => { if (picking) $('picking').hidden = false; }, 1200); });
+  $('file').addEventListener('cancel', hidePicking);
+  $('pickingClose').onclick = hidePicking;
   $('file').addEventListener('change', e => {
+    hidePicking();
     const f = e.target.files[0];
     e.target.value = '';
     if (!f) return;
@@ -920,7 +943,7 @@
   // The front camera is drawn in a bottom corner of the picture (opposite the tools), so it is
   // part of the recording. Mirrored, like a selfie.
   const camV = $('cam');
-  let camStream = null;
+  let camStream = null, camRect = null, camDrag = null;   // drag the cam to any corner; it snaps to the nearest one
   async function setCam(on) {
     if (on && !camStream) {
       try {
@@ -938,7 +961,7 @@
       }
     } else if (!on && camStream) {
       camStream.getTracks().forEach(t => t.stop());
-      camStream = null; camV.srcObject = null;
+      camStream = null; camV.srcObject = null; camRect = null; camDrag = null;
       log('Instructor cam off');
     }
     $('camBtn').classList.toggle('on', !!camStream);
@@ -953,8 +976,10 @@
     const w = Math.round(short * (W > H ? 0.3 : 0.34));
     const h = Math.round(w * camV.videoHeight / camV.videoWidth);
     const m = Math.round(short * 0.03), r = Math.round(w * 0.08);
-    const x = document.body.classList.contains('lefty') ? W - w - m : m;   // opposite side of the tools
-    const y = H - h - m;
+    const corner = prefs.camPos || ('b' + (document.body.classList.contains('lefty') ? 'r' : 'l'));   // default: bottom, opposite the tools
+    let x = corner[1] === 'r' ? W - w - m : m, y = corner[0] === 'b' ? H - h - m : m;
+    if (camDrag) { x = Math.min(W - w, Math.max(0, camDrag.x)); y = Math.min(H - h, Math.max(0, camDrag.y)); }
+    camRect = { x, y, w, h, m };
     c.save();
     roundRect(c, x, y, w, h, r); c.clip();
     c.translate(x + w, y); c.scale(-1, 1);
@@ -1092,7 +1117,12 @@
     if (textPending) commitText();
     closeMenus();
     try { area.setPointerCapture(e.pointerId); } catch (err) {}
-    pointers.set(e.pointerId, canvasPos(e));
+    const cp = canvasPos(e);
+    if (camStream && camRect && !pointers.size && cp[0] >= camRect.x && cp[0] <= camRect.x + camRect.w && cp[1] >= camRect.y && cp[1] <= camRect.y + camRect.h) {
+      camDrag = { id: e.pointerId, x: camRect.x, y: camRect.y, dx: cp[0] - camRect.x, dy: cp[1] - camRect.y };
+      dirty = true; return;
+    }
+    pointers.set(e.pointerId, cp);
     if (pointers.size === 2) {                         // second finger: zoom / pan, cancel the shape
       cancelCurrent();
       const [a, b] = [...pointers.values()];
@@ -1114,6 +1144,10 @@
     redrawInk();
   });
   area.addEventListener('pointermove', e => {
+    if (camDrag && camDrag.id === e.pointerId) {
+      const cp = canvasPos(e);
+      camDrag.x = cp[0] - camDrag.dx; camDrag.y = cp[1] - camDrag.dy; dirty = true; return;
+    }
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, canvasPos(e));
     if (pinch && pointers.size >= 2) {
       const [a, b] = [...pointers.values()];
@@ -1170,6 +1204,13 @@
     redrawInk();
   }
   function pointerEnd(e) {
+    if (camDrag && camDrag.id === e.pointerId) {
+      const cx = camDrag.x + camRect.w / 2, cy = camDrag.y + camRect.h / 2;
+      prefs.camPos = (cy > view.height / 2 ? 'b' : 't') + (cx > view.width / 2 ? 'r' : 'l');
+      camDrag = null; savePrefs(); dirty = true;
+      act('camMove', { pos: prefs.camPos });
+      return;
+    }
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (pinch) {
@@ -1309,7 +1350,8 @@
   function showBmList() {
     bmEditing = null;
     $('bmEditBox').hidden = true; $('bmListBox').hidden = false;
-    $('bmAddHere').textContent = `+ Bookmark this moment (${fmtT(video.currentTime)})`;
+    $('bmQuickT').textContent = `Bookmark ${fmtT(video.currentTime)}: tap a tag`;
+    $('bmQuick').innerHTML = allTags().map(t => chipHtml(t, false)).join('');
     const used = allTags().filter(t => bookmarks.some(b => b.tags.includes(t)));
     $('bmFilter').innerHTML = used.length ? `<button class="chip${!bmFilter ? ' sel' : ''}" data-tag="">All</button>` + used.map(t => chipHtml(t, bmFilter === t)).join('') : '';
     const list = bookmarks.filter(b => !bmFilter || b.tags.includes(bmFilter));
@@ -1317,7 +1359,7 @@
         <button class="bmT" data-go="${b.id}">${fmtT(b.t)}</button>
         <div class="bmBody">${b.tags.length ? '<div class="chips">' + b.tags.map(t => chipHtml(t, true)).join('') + '</div>' : ''}${b.note ? '<p>' + esc(b.note) + '</p>' : ''}</div>
         <button data-edit="${b.id}" aria-label="Edit bookmark">Edit</button></div>`).join('')
-      : '<p id="bmEmpty">No bookmarks yet. Mark a moment, give it one or two tags and a note, then jump back to it from here.</p>';
+      : '<p id="bmEmpty">No bookmarks yet. Tap a tag above to mark this moment, then jump back to it from here.</p>';
   }
   function editBookmark(b) {
     bmEditing = b;
@@ -1326,7 +1368,7 @@
     renderBmTags();
     $('bmNote').value = b.note || '';
     $('bmNewTag').value = '';
-    $('bmDelete').hidden = !bookmarks.includes(b);
+    $('bmDelete').hidden = false;
   }
   function renderBmTags() {
     $('bmTags').innerHTML = allTags().map(t => chipHtml(t, bmEditing.tags.includes(t))).join('');
@@ -1335,16 +1377,28 @@
     if (!video.src) return;
     const b = { id: Date.now().toString(36), t: +video.currentTime.toFixed(3), tags: [], note: '' };
     act('bookmark', { bt: b.t });
+    // Saved straight away: every later change in the editor is saved as it is made.
+    bookmarks.push(b); saveBookmarks();
     if (openEditor) { $('bmCard').style.display = 'block'; $('result').style.display = 'none'; $('settings').style.display = 'none'; openSheet(); editBookmark(b); }
-    else { bookmarks.push(b); saveBookmarks(); hint(`Bookmark added at ${fmtT(b.t)}`, 1500); }
+    else hint(`Bookmark added at ${fmtT(b.t)}`, 1500);
+    return b;
   }
+  // Two taps: the Bookmarks button, then a tag. The bookmark is saved and the panel closes.
+  $('bmQuick').onclick = e => {
+    const c = e.target.closest('.chip'); if (!c || !video.src) return;
+    const b = addBookmarkNow(false); if (!b) return;
+    b.tags = [c.dataset.tag]; saveBookmarks();
+    act('bookmarkSave', { bt: b.t, tags: b.tags });
+    closeSheet();
+    hint(`${c.dataset.tag} bookmarked at ${fmtT(b.t)}`, 1800);
+  };
   $('bmBtn').onclick = openBookmarks;
   $('bmAddHere').onclick = () => addBookmarkNow(true);
   $('bmTags').onclick = e => {
     const c = e.target.closest('.chip'); if (!c || !bmEditing) return;
     const t = c.dataset.tag, i = bmEditing.tags.indexOf(t);
     if (i >= 0) bmEditing.tags.splice(i, 1); else bmEditing.tags.push(t);
-    renderBmTags();
+    saveBookmarks(); renderBmTags();
   };
   function addCustomTag() {
     const t = $('bmNewTag').value.trim().replace(/\s+/g, ' ');
@@ -1352,21 +1406,20 @@
     const known = allTags().find(x => x.toLowerCase() === t.toLowerCase());
     const tag = known || t;
     if (!known) { prefs.customTags = (prefs.customTags || []).concat(tag); savePrefs(); }
-    if (bmEditing && !bmEditing.tags.includes(tag)) bmEditing.tags.push(tag);
+    if (bmEditing && !bmEditing.tags.includes(tag)) { bmEditing.tags.push(tag); saveBookmarks(); }
     $('bmNewTag').value = '';
     renderBmTags();
   }
   $('bmNewTagBtn').onclick = addCustomTag;
   $('bmNewTag').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); addCustomTag(); } });
   $('bmNote').addEventListener('keydown', e => e.stopPropagation());
+  $('bmNote').addEventListener('input', () => { if (bmEditing) { bmEditing.note = $('bmNote').value.trim(); saveBookmarks(); } });
   $('bmSave').onclick = () => {
     if (!bmEditing) return;
     bmEditing.note = $('bmNote').value.trim();
-    if (!bookmarks.includes(bmEditing)) bookmarks.push(bmEditing);
     act('bookmarkSave', { bt: bmEditing.t, tags: bmEditing.tags });
     saveBookmarks(); showBmList();
   };
-  $('bmCancel').onclick = showBmList;
   $('bmDelete').onclick = () => {
     if (!bmEditing) return;
     bookmarks = bookmarks.filter(b => b !== bmEditing);
