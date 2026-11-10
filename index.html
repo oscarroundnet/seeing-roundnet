@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,7 +18,7 @@
   :root { --bg:#051117; --panel:#0B212D; --panel2:#071820; --line:#225570; --fg:#E3E3E3; --muted:#8FA6B2; --soft:#A9BCC6;
           --accent:#1484C4; --azure:#225570; --rec:#FF3B30; --ok:#30d158; --warn:#ffd60a; --side:124px; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
+  html, body { touch-action:manipulation; margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
                font-family:Montserrat, -apple-system, system-ui, sans-serif; -webkit-user-select:none; user-select:none; }
   [hidden] { display:none !important; }
   button, select { font-family:inherit; color:var(--fg); background:var(--panel); border:0; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; }
@@ -65,7 +65,8 @@
   #stage { position:relative; background:#000; }
   #stage video, #stage canvas { position:absolute; inset:0; width:100%; height:100%; }
   #stage video { object-fit:fill; }
-  #view { touch-action:none; }
+  #view, #stageWrap { touch-action:none; }
+  #tools { touch-action:none; }
   #textBox { position:absolute; z-index:3; width:min(240px, 80%); font:700 16px Montserrat, sans-serif; padding:7px 10px; border-radius:8px;
              border:2px solid var(--accent); background:rgba(5,17,23,.92); color:#fff; outline:none; -webkit-user-select:text; user-select:text; }
   #recBadge { position:absolute; top:10px; left:50%; transform:translateX(-50%); background:var(--rec); color:#fff; font-size:13px; font-weight:700;
@@ -89,6 +90,11 @@
   body.lefty #tools { right:auto; left:calc(env(safe-area-inset-left) + 10px); align-items:flex-start; }
   body.lefty .grp { flex-direction:row; }
   body.lefty #leftRail { left:auto; right:calc(env(safe-area-inset-right) + 10px); align-items:flex-end; }
+  /* tools in a bottom corner (dragged there, or chosen in Settings) */
+  body.tbottom #tools { top:auto; bottom:calc(var(--barH, 110px) + 10px); }
+  body.tbottom.lefty #leftRail { left:calc(env(safe-area-inset-left) + 10px); right:auto; align-items:flex-start; }
+  #tools.dragging { transition:none; opacity:.85; z-index:30; }
+  #tools.dragging .opts { display:none !important; }
 
   #bar { grid-area:bar; padding:6px 12px 10px; display:flex; flex-direction:column; gap:6px; }
   .srow { display:flex; align-items:center; gap:10px; }
@@ -131,28 +137,37 @@
   #recPause.paused { background:var(--rec) !important; color:#fff !important; animation:pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity:.55; } }
 
+  /* Landscape: same compact tools as in portrait (one button per setting, options on tap),
+     laid out in a row at the top right so the video keeps almost the whole screen. */
   @media (orientation:landscape) and (max-height:560px) {
-    #app { grid-template-columns:1fr var(--side); grid-template-rows:auto 1fr auto; grid-template-areas:"stage head" "stage tools" "bar tools"; }
-    body.lefty #app { grid-template-columns:var(--side) 1fr; grid-template-areas:"head stage" "tools stage" "tools bar"; }
-    header { height:auto; padding:4px 4px 0; background:var(--panel2); }
-    .brand { display:none; }
-    .hbtns { gap:0; }
-    #tools, body.lefty #tools { grid-area:tools; position:static; background:var(--panel2); padding:6px 8px 8px; overflow-y:auto; align-items:center; gap:10px; }
-    #app.bare #tools { display:flex; }
-    #hideBtn { display:none; }
-    #tools .grp, body.lefty #tools .grp { flex-direction:column; }
-    #tools .cur { display:none; }
-    #tools .opts { display:grid; grid-template-columns:repeat(3, 34px); gap:5px; background:none; padding:0; border-radius:0; -webkit-backdrop-filter:none; backdrop-filter:none; }
-    #tools .opts .fb { width:34px; height:38px; border-radius:10px; background:var(--panel); }
-    #tools #gColor .opts, #tools #gSize .opts { grid-template-columns:repeat(3, 28px); gap:6px 10px; }
-    #tools #gColor .opts .fb, #tools #gSize .opts .fb { width:28px; height:28px; border-radius:14px; }
-    #tools .sw { width:20px; height:20px; }
-    .tactions { flex-direction:row; gap:6px; }
-    .tactions .fb { width:52px; height:36px; border-radius:10px; background:var(--panel); }
-    .rail { top:calc(env(safe-area-inset-top) + 10px); }
-    body.lefty #leftRail { right:calc(env(safe-area-inset-right) + 10px); }
-    #bar { padding:4px 10px 6px; gap:2px; }
-    #stall { left:12px; right:12px; }
+    /* no header row in landscape: its buttons float over the video, top left (top right if the tools are on the left) */
+    #app { padding-left:0; padding-right:0; grid-template-rows:1fr auto; grid-template-areas:"stage" "bar"; }
+    header { position:absolute; z-index:6; top:calc(env(safe-area-inset-top) + 8px); left:calc(env(safe-area-inset-left) + 10px); height:auto; padding:0; gap:8px; justify-content:flex-start; }
+    header .brand { display:none; }
+    header .ib, .hbtns .ib { width:40px; height:40px; border-radius:20px; background:rgba(5,17,23,.74); }
+    .hbtns { gap:8px; }
+    body.lefty header { left:auto; right:calc(env(safe-area-inset-right) + 10px); flex-direction:row-reverse; }
+    body.lefty .hbtns { flex-direction:row-reverse; }
+    .rail { top:calc(env(safe-area-inset-top) + 8px); gap:8px; }
+    #leftRail { left:calc(env(safe-area-inset-left) + 154px) !important; right:auto !important; }
+    body.lefty #leftRail { left:auto !important; right:calc(env(safe-area-inset-right) + 154px) !important; }
+    #tools { flex-direction:row; align-items:flex-start; right:calc(env(safe-area-inset-right) + 10px); }
+    body.lefty #tools { right:auto; left:calc(env(safe-area-inset-left) + 10px); }
+    #tools .grp, body.lefty #tools .grp { flex-direction:column; position:relative; }
+    #tools .opts { position:absolute; top:50px; right:0; }
+    body.lefty #tools .opts { right:auto; left:0; }
+    body.tbottom #tools .opts { top:auto; bottom:50px; }
+    .tactions { flex-direction:row; gap:8px; }
+    #leftRail { flex-direction:row; }
+    #bar { flex-direction:row; align-items:center; gap:8px; padding:4px calc(env(safe-area-inset-right) + 12px) 6px calc(env(safe-area-inset-left) + 12px); }
+    .crow { display:contents; }
+    .crow > * { order:1; }
+    .srow { flex:1; order:2; min-width:180px; }
+    .crow .spacer { display:none; }
+    #recPause, #rec { order:3; }
+    #stall { left:12px; right:12px; top:56px; }
+    #recBadge { top:12px; }
+    #speedMenu { bottom:auto; top:auto; bottom:52px; }
   }
 
   /* ---------- sheet (results, settings, log) */
@@ -202,7 +217,7 @@
 <div id="app" hidden>
   <header>
     <button class="ib ghost" id="homeBtn" aria-label="Home" data-icon="back"></button>
-    <div class="brand"><b>SR</b><span>SEEING ROUNDNET</span></div>
+    <div class="brand"><img src="logo-mark.png" alt="Seeing Roundnet" style="height:36px;width:auto;display:block"></div>
     <div class="hbtns">
       <button class="ib ghost" id="exportBtn" aria-label="Last exported video" data-icon="share" data-size="20" disabled></button>
       <button class="ib ghost" id="settingsBtn" aria-label="Settings" data-icon="more" data-size="20"></button>
@@ -326,7 +341,8 @@
     <p class="ct">Settings</p>
     <label class="setrow">Recording quality
       <select id="quality" aria-label="Recording quality"><option value="1920">1080p (recommended)</option><option value="1280">720p (lighter)</option></select></label>
-    <label class="setrow">Left-handed layout (tools on the left) <input type="checkbox" id="lefty"></label>
+    <label class="setrow">Drawing tools position <small style="font-weight:500;color:var(--muted)">(or drag them)</small>
+      <select id="toolPos" aria-label="Drawing tools position"><option value="tr">Top right</option><option value="tl">Top left</option><option value="br">Bottom right</option><option value="bl">Bottom left</option></select></label>
     <label class="setrow"><span>Include the match sound in recordings<br><small style="font-weight:500;color:var(--muted)">Added under your voice, at a lower volume. Choose before recording.</small></span> <input type="checkbox" id="matchAudio"></label>
     <div class="setbtns"><button id="diag">Send a report</button><button id="logBtn">Show log</button></div>
     <div id="info"></div>
@@ -337,7 +353,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 9';
+  const VERSION = 'v1.0 build 12';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -437,16 +453,18 @@
   // ---------------------------------------------------------------- preferences
   const prefs = (() => { try { return JSON.parse(localStorage.getItem('sr-v1-prefs')) || {}; } catch (e) { return {}; } })();
   const savePrefs = () => { try { localStorage.setItem('sr-v1-prefs', JSON.stringify(prefs)); } catch (e) {} };
-  function setLefty(on) {
-    document.body.classList.toggle('lefty', !!on);
-    $('lefty').checked = !!on;
-    prefs.lefty = !!on; savePrefs();
-    if (typeof fitStage === 'function') setTimeout(fitStage, 0);
+  // Drawing tools can sit in any corner of the video: top/bottom, left/right.
+  function setToolPos(pos) {
+    if (!/^(tr|tl|br|bl)$/.test(pos)) pos = 'tr';
+    document.body.classList.toggle('lefty', pos[1] === 'l');
+    document.body.classList.toggle('tbottom', pos[0] === 'b');
+    $('toolPos').value = pos;
+    prefs.toolPos = pos; prefs.lefty = pos[1] === 'l'; savePrefs();
   }
-  $('lefty').onchange = () => setLefty($('lefty').checked);
+  $('toolPos').onchange = () => setToolPos($('toolPos').value);
   $('matchAudio').checked = !!prefs.matchAudio;
   $('matchAudio').onchange = () => { if (recState !== 'idle') { $('matchAudio').checked = !!prefs.matchAudio; return; } prefs.matchAudio = $('matchAudio').checked; savePrefs(); };
-  setLefty(prefs.lefty);
+  setToolPos(prefs.toolPos || (prefs.lefty ? 'tl' : 'tr'));
 
   // ---------------------------------------------------------------- storage (IndexedDB)
   const DB_NAME = 'seeing-roundnet-v2';
@@ -460,20 +478,38 @@
         d.createObjectStore('out', { keyPath: 'i' });      // converted MP4, 4 MB parts
         d.createObjectStore('meta', { keyPath: 'k' });     // session state, action log
       };
-      r.onsuccess = () => res(r.result);
-      r.onerror = () => rej(r.error);
+      r.onsuccess = () => {
+        const d = r.result;
+        // Safari sometimes closes the storage connection (app in the background, memory pressure):
+        // forget it so the next access opens a fresh one. Nothing stored is lost.
+        d.onclose = () => { if (typeof log === 'function') log('Storage connection closed by the browser: reopening', 'w'); dbPromise = null; };
+        d.onversionchange = () => { try { d.close(); } catch (e) {} dbPromise = null; };
+        res(d);
+      };
+      r.onerror = () => { dbPromise = null; rej(r.error); };
     });
     return dbPromise;
   }
-  async function tx(store, mode, fn) {
-    const d = await openDB();
+  function txOnce(d, store, mode, fn) {
     return new Promise((res, rej) => {
-      const t = d.transaction(store, mode);
+      const t = d.transaction(store, mode);       // throws if the connection is closing
       const req = fn(t.objectStore(store));
       t.oncomplete = () => res(req ? req.result : undefined);
       t.onerror = () => rej(t.error || new Error('IndexedDB error'));
       t.onabort = () => rej(t.error || new Error('IndexedDB transaction aborted'));
     });
+  }
+  async function tx(store, mode, fn) {
+    for (let attempt = 0; ; attempt++) {
+      try { return await txOnce(await openDB(), store, mode, fn); }
+      catch (e) {
+        const closing = e && (e.name === 'InvalidStateError' || e.name === 'UnknownError' || /clos/i.test(e.message || ''));
+        if (!closing || attempt >= 3) throw e;
+        if (typeof log === 'function') log(`Storage connection lost (${errMsg(e)}), retrying`, 'w');
+        dbPromise = null;
+        await new Promise(r => setTimeout(r, 150 * (attempt + 1)));
+      }
+    }
   }
   const putRec = (s, v) => tx(s, 'readwrite', o => o.put(v));
   const getAll = s => tx(s, 'readonly', o => o.getAll());
@@ -633,6 +669,18 @@
   }
   if (window.ResizeObserver) new ResizeObserver(fitStage).observe($('stageWrap'));
   window.addEventListener('resize', fitStage);
+  // Turning the phone (portrait <-> landscape) puts the video back to normal size.
+  let wasLandscape = innerWidth > innerHeight;
+  const onTurn = () => {
+    const land = innerWidth > innerHeight;
+    if (land === wasLandscape) return;
+    wasLandscape = land;
+    if (typeof resetZoom === 'function' && Z.s > 1.01) { resetZoom(); act('zoom', { s: 1, reason: 'rotate' }); }
+    if (typeof closeMenus === 'function') closeMenus();
+    setTimeout(fitStage, 50); setTimeout(fitStage, 400);   // iOS reports the new size a little late
+  };
+  window.addEventListener('resize', onTurn);
+  window.addEventListener('orientationchange', () => setTimeout(onTurn, 100));
   $('quality').value = String(maxSide <= 1280 ? 1280 : 1920);
   $('to720').onclick = () => {
     $('quality').value = '1280'; $('quality').onchange();
@@ -982,12 +1030,14 @@
 
   const pointers = new Map();
   let pinch = null;
-  view.addEventListener('pointerdown', e => {
+  const area = $('stageWrap');   // the whole video area, black bands included
+  area.addEventListener('pointerdown', e => {
+    if (e.target.closest('#textBox')) return;
     if (!view.width || !video.src) return;
     e.preventDefault();
     if (textPending) commitText();
     closeMenus();
-    try { view.setPointerCapture(e.pointerId); } catch (err) {}
+    try { area.setPointerCapture(e.pointerId); } catch (err) {}
     pointers.set(e.pointerId, canvasPos(e));
     if (pointers.size === 2) {                         // second finger: zoom / pan, cancel the shape
       cancelCurrent();
@@ -1009,7 +1059,7 @@
     if (tool !== 'pen') current.pts.push(p);
     redrawInk();
   });
-  view.addEventListener('pointermove', e => {
+  area.addEventListener('pointermove', e => {
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, canvasPos(e));
     if (pinch && pointers.size >= 2) {
       const [a, b] = [...pointers.values()];
@@ -1075,10 +1125,10 @@
     }
     endShape();
   }
-  view.addEventListener('pointerup', pointerEnd);
-  view.addEventListener('pointercancel', pointerEnd);
+  area.addEventListener('pointerup', pointerEnd);
+  area.addEventListener('pointercancel', pointerEnd);
   // Laptop: pinch on the trackpad (or Ctrl + wheel) zooms at the cursor; scrolling pans when zoomed.
-  view.addEventListener('wheel', e => {
+  area.addEventListener('wheel', e => {
     if (!video.src) return;
     e.preventDefault();
     const [cx, cy] = canvasPos(e);
@@ -1125,6 +1175,44 @@
     redrawInk(); act('undo');
   };
   $('clear').onclick = () => { if (textPending) { $('textBox').value = ''; commitText(); } strokes = []; pendingAngle = null; runningTimer = null; redrawInk(); act('clear'); };
+
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
+
+  // ---------------------------------------------------------------- tools: drag to a corner
+  const setBarH = () => document.documentElement.style.setProperty('--barH', $('bar').offsetHeight + 'px');
+  if (window.ResizeObserver) new ResizeObserver(setBarH).observe($('bar'));
+  setBarH();
+  (() => {
+    const rail = $('tools');
+    let start = null, dragged = false, justDragged = false;
+    rail.addEventListener('pointerdown', e => {
+      if (e.target.closest('.opts')) return;
+      start = { x: e.clientX, y: e.clientY, id: e.pointerId }; dragged = false;
+    });
+    window.addEventListener('pointermove', e => {
+      if (!start || e.pointerId !== start.id) return;
+      const dx = e.clientX - start.x, dy = e.clientY - start.y;
+      if (!dragged && Math.hypot(dx, dy) > 14) {
+        dragged = true; closeMenus(); rail.classList.add('dragging');
+        try { rail.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+      if (dragged) rail.style.transform = `translate(${dx}px, ${dy}px)`;
+    });
+    const end = e => {
+      if (!start || e.pointerId !== start.id) return;
+      if (dragged) {
+        const r = $('app').getBoundingClientRect();
+        const pos = (e.clientY > r.top + r.height / 2 ? 'b' : 't') + (e.clientX < r.left + r.width / 2 ? 'l' : 'r');
+        rail.style.transform = ''; rail.classList.remove('dragging');
+        setToolPos(pos); justDragged = true; setTimeout(() => { justDragged = false; }, 300);
+        log('Tools moved to ' + pos);
+      }
+      start = null; dragged = false;
+    };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    rail.addEventListener('click', e => { if (justDragged) { e.stopPropagation(); e.preventDefault(); } }, true);
+  })();
 
   // ---------------------------------------------------------------- bookmarks
   // A bookmark = a moment of the video + tags + an optional note. Saved on the device for this
@@ -1460,7 +1548,7 @@
     saveMeta();
   }
 
-  if (params.has('test')) window.__sr = { restartSegment: () => restartSegment() };   // automated tests only
+  if (params.has('test')) window.__sr = { restartSegment: () => restartSegment(), closeDB: async () => (await openDB()).close() };   // automated tests only
   async function startRecording() {
     if (!view.captureStream || !window.MediaRecorder) { alert('This browser cannot record video from the page.'); return; }
     prepareAudioContext();
@@ -1895,7 +1983,7 @@
       `Seeing Roundnet diagnostics · ${VERSION} · ${new Date().toISOString()}`,
       `URL: ${location.href}`,
       `User agent: ${navigator.userAgent}`,
-      `Screen: ${screen.width}×${screen.height} @${devicePixelRatio}x · standalone: ${!!(navigator.standalone || matchMedia('(display-mode: standalone)').matches)} · left-handed: ${!!prefs.lefty}`,
+      `Screen: ${screen.width}×${screen.height} @${devicePixelRatio}x · standalone: ${!!(navigator.standalone || matchMedia('(display-mode: standalone)').matches)} · tools: ${prefs.toolPos || 'tr'}`,
       `Compat mode: ${COMPAT} · render fps: ${RENDER_FPS} · max side: ${maxSide} · bitrate: ${videoBps() / 1e6} Mbps`,
       `APIs: MediaRecorder=${!!window.MediaRecorder} captureStream=${!!view.captureStream} wakeLock=${'wakeLock' in navigator} VideoEncoder=${!!window.VideoEncoder} AudioEncoder=${!!window.AudioEncoder} rVFC=${'requestVideoFrameCallback' in HTMLVideoElement.prototype}`,
       `Recorder formats:\n${support}`,
