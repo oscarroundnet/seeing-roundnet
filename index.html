@@ -105,6 +105,9 @@
 
   #bar { grid-area:bar; padding:6px 12px 10px; display:flex; flex-direction:column; gap:6px; }
   .srow { display:flex; align-items:center; gap:10px; }
+  #strip { position:relative; height:58px; border-radius:10px; overflow:hidden; background:var(--panel2); touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none; }
+  #strip:active { cursor:grabbing; }
+  #stripC { width:100%; height:100%; display:block; }
   .srow span { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:62px; }
   #tDur { text-align:right; }
   #scrubWrap { flex:1; min-width:60px; position:relative; display:flex; align-items:center; }
@@ -168,7 +171,8 @@
     body.tbottom #tools .opts { top:auto; bottom:50px; }
     .tactions { flex-direction:row; gap:8px; }
     #leftRail { flex-direction:row; }
-    #bar { flex-direction:row; align-items:center; gap:8px; padding:4px calc(env(safe-area-inset-right) + 12px) 6px calc(env(safe-area-inset-left) + 12px); }
+    #bar { flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:4px calc(env(safe-area-inset-right) + 12px) 6px calc(env(safe-area-inset-left) + 12px); }
+    #strip { order:0; flex:0 0 100%; height:40px; border-radius:8px; }
     .crow { display:contents; }
     .crow > * { order:1; }
     .srow { flex:1; order:2; min-width:180px; }
@@ -206,7 +210,7 @@
 </head>
 <body>
 <input id="file" type="file" accept="video/*" hidden>
-<video id="cam" playsinline muted style="position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none"></video>
+<video id="cam" playsinline muted autoplay style="position:fixed;left:0;bottom:0;width:160px;height:120px;z-index:-1;pointer-events:none"></video>
 
 <div id="home">
   <img id="logo" src="logo.jpg" alt="Seeing Roundnet by Beeks">
@@ -297,6 +301,7 @@
       <div id="scrubWrap"><input id="scrub" type="range" min="0" max="0" step="0.001" value="0" aria-label="Position in the video"><div id="bmMarks"></div></div>
       <span id="tDur">00:00</span>
     </div>
+    <div id="strip" aria-label="Timeline: drag left or right to move through the video"><canvas id="stripC"></canvas></div>
     <div class="crow">
       <button class="ib" id="back" aria-label="Previous frame (hold to keep going)" data-icon="prev" data-size="20"></button>
       <button class="ib" id="play" aria-label="Play or pause" data-icon="playFill" data-size="20"></button>
@@ -371,7 +376,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 15';
+  const VERSION = 'v1.0 build 16';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -653,6 +658,7 @@
     if (recState !== 'idle') { alert('Stop the recording before loading another video.'); return; }
     if (video.src) URL.revokeObjectURL(video.src);
     videoKey = `${f.name || 'video'}|${f.size}`; currentFileSize = f.size; bigWarned = false;
+    resetStrip(f);
     log(`Loading ${f.name || 'video'} · ${mbs(f.size)} · ${f.type || 'unknown type'}`);
     fpsSamples = []; fps = 30; fpsMeasured = false; fileLoadId++; frameValid = false; resetZoom();
     enableEditing(false);
@@ -847,7 +853,9 @@
       if (document.activeElement !== $('scrub')) $('scrub').value = video.currentTime;
       $('tCur').textContent = fmtT(video.currentTime);
       $('tDur').textContent = fmtRec((video.duration || 0) * 1000);
+      pumpThumbs();
     }
+    if (video.src) drawStrip();
   }
   requestAnimationFrame(loop);
   ['seeked', 'loadeddata'].forEach(ev => video.addEventListener(ev, () => { dirty = true; }));
@@ -878,6 +886,159 @@
   holdToRepeat($('fwd'), 1);
   $('scrub').addEventListener('input', e => { video.currentTime = +e.target.value; });
   $('scrub').addEventListener('change', () => act('seek'));
+
+  // ---------------------------------------------------------------- filmstrip timeline
+  // Like Onform: small pictures of the video under a fixed playhead. Drag the strip to move
+  // through the video (it follows the finger, frame by frame when moving slowly, and keeps
+  // gliding after a flick). Pictures are made on demand around the current moment only.
+  const strip = $('strip'), sc = $('stripC'), sctx = sc.getContext('2d');
+  const thumbs = new Map();
+  let stripFile = null, stripSink = null, stripFailed = false, stripGen = 0, thumbBusy = false;
+  let thumbW = 40, PPS = 90, thumbDt = 0.5, stripDrag = null, glide = null, stripTarget = null, seekWanted = null, stripDrawn = '';
+  function stripLayout() {
+    const r = strip.getBoundingClientRect(), d = devicePixelRatio || 1;
+    if (!r.width || !r.height) return;
+    const w = Math.round(r.width * d), h = Math.round(r.height * d);
+    const ar = video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 16 / 9;
+    const tw = Math.round(Math.max(r.height * 0.85, Math.min(r.height * 1.8, r.height * ar)));
+    if (sc.width === w && sc.height === h && tw === thumbW) return;
+    sc.width = w; sc.height = h;
+    thumbW = tw; PPS = Math.max(90, thumbW); thumbDt = thumbW / PPS;   // ≈ 3 px per frame at 30 fps
+    stripSink = null; thumbs.clear(); stripGen++; stripDrawn = '';
+  }
+  function resetStrip(file) {
+    stripFile = file; stripSink = null; stripFailed = false; thumbs.clear(); stripGen++;
+    stripDrag = null; glide = null; stripTarget = null; seekWanted = null; stripDrawn = '';
+  }
+  if (window.ResizeObserver) new ResizeObserver(stripLayout).observe(strip);
+  video.addEventListener('loadedmetadata', stripLayout);
+  const vDur = () => (isFinite(video.duration) ? video.duration : 0);
+  // Where the strip is: the finger while dragging, else the video (or where it is heading).
+  const stripT = () => stripDrag ? stripDrag.t : glide ? glide.t : (stripTarget !== null ? stripTarget : video.currentTime);
+  function stripSeek(t) {
+    seekWanted = t; stripTarget = t;
+    if (!video.seeking) { video.currentTime = seekWanted; seekWanted = null; }
+  }
+  video.addEventListener('seeked', () => {
+    if (seekWanted !== null) { video.currentTime = seekWanted; seekWanted = null; }
+    else if (!stripDrag && !glide) stripTarget = null;
+  });
+  function drawStrip() {
+    const dur = vDur(), cur = stripT();
+    const key = `${cur.toFixed(4)}|${sc.width}|${thumbs.size}|${bookmarks.length}|${bmFilter}`;
+    if (key === stripDrawn) return;
+    stripDrawn = key;
+    const d = devicePixelRatio || 1, W = sc.width, H = sc.height, cx = W / 2, pps = PPS * d, tw = thumbW * d;
+    sctx.fillStyle = '#071820'; sctx.fillRect(0, 0, W, H);
+    if (!dur || !W) return;
+    const n = Math.ceil(dur / thumbDt);
+    const i0 = Math.max(0, Math.floor((cur - cx / pps) / thumbDt)), i1 = Math.min(n - 1, Math.ceil((cur + cx / pps) / thumbDt));
+    for (let i = i0; i <= i1; i++) {
+      const x = cx + (i * thumbDt - cur) * pps, w = Math.min(tw, (dur - i * thumbDt) * pps);
+      const th = thumbs.get(i);
+      if (th) sctx.drawImage(th, 0, 0, Math.max(1, Math.round(th.width * w / tw)), th.height, x, 0, w, H);
+      else { sctx.fillStyle = '#0B212D'; sctx.fillRect(x, 0, w, H); }
+      sctx.fillStyle = 'rgba(5,17,23,.55)'; sctx.fillRect(x + w - d, 0, d, H);   // thin line between pictures
+    }
+    // bookmarks: a small coloured flag at their moment
+    for (const b of bookmarks) {
+      if (bmFilter && !b.tags.includes(bmFilter)) continue;
+      const x = cx + (b.t - cur) * pps;
+      if (x < -10 * d || x > W + 10 * d) continue;
+      sctx.fillStyle = b.tags.length ? tagColor(b.tags[0]) : '#E3E3E3';
+      sctx.beginPath(); sctx.moveTo(x - 5 * d, 0); sctx.lineTo(x + 5 * d, 0); sctx.lineTo(x, 7 * d); sctx.fill();
+    }
+    // fixed playhead in the middle
+    sctx.fillStyle = 'rgba(5,17,23,.8)'; roundRect(sctx, cx - 4.5 * d, 0, 9 * d, H, 3 * d); sctx.fill();
+    sctx.fillStyle = '#F5B335'; roundRect(sctx, cx - 2.5 * d, d, 5 * d, H - 2 * d, 2.5 * d); sctx.fill();
+  }
+  async function getSink() {
+    if (stripSink) return stripSink;
+    const gen = stripGen;
+    const { Input, ALL_FORMATS, BlobSource, CanvasSink } = await loadMediabunny();
+    const input = new Input({ source: new BlobSource(stripFile), formats: ALL_FORMATS });
+    const track = await input.getPrimaryVideoTrack();
+    if (!track || !(await track.canDecode())) {
+      stripFailed = true;
+      log('Timeline pictures not available for this video on this phone (the strip still works)', 'w');
+      return null;
+    }
+    if (gen !== stripGen) return null;
+    stripSink = new CanvasSink(track, { width: Math.round(thumbW * (devicePixelRatio || 1)), height: sc.height, fit: 'cover' });
+    return stripSink;
+  }
+  // Makes the missing pictures around the current moment, nearest first, in one decoding pass.
+  async function pumpThumbs() {
+    if (thumbBusy || !stripFile || stripFailed || !sc.width) return;
+    if (recState === 'recording' && !video.paused) return;   // keep the phone free for a recording that plays
+    const dur = vDur(); if (!dur) return;
+    const n = Math.ceil(dur / thumbDt), half = Math.ceil(sc.width / (devicePixelRatio || 1) / 2 / thumbW) + 4;
+    const ci = Math.floor(stripT() / thumbDt);
+    const want = [];
+    for (let i = Math.max(0, ci - half); i <= Math.min(n - 1, ci + half); i++) if (!thumbs.has(i)) want.push(i);
+    if (!want.length) return;
+    thumbBusy = true;
+    const gen = stripGen;
+    try {
+      const sink = await getSink();
+      if (!sink || gen !== stripGen) return;
+      const ts = want.map(i => Math.min(dur - 0.01, i * thumbDt + Math.min(0.02, thumbDt / 4)));
+      let k = 0;
+      for await (const wc of sink.canvasesAtTimestamps(ts)) {
+        if (gen !== stripGen) break;
+        const i = want[k++];
+        if (wc) thumbs.set(i, wc.canvas);
+        stripDrawn = '';
+        if (Math.abs(Math.floor(stripT() / thumbDt) - ci) > half) break;   // moved far away: start again around the new spot
+        if (recState === 'recording' && !video.paused) break;
+      }
+      if (thumbs.size > 400) {   // forget the pictures furthest away
+        const c = Math.floor(stripT() / thumbDt);
+        [...thumbs.keys()].sort((a, b) => Math.abs(b - c) - Math.abs(a - c)).slice(0, thumbs.size - 300).forEach(i => thumbs.delete(i));
+      }
+    } catch (e) {
+      stripFailed = true;
+      log('Timeline pictures stopped: ' + errMsg(e), 'w');
+    } finally { thumbBusy = false; }
+  }
+  strip.addEventListener('pointerdown', e => {
+    if (!video.src || !vDur() || recState === 'finishing') return;
+    e.preventDefault();
+    try { strip.setPointerCapture(e.pointerId); } catch (err) {}
+    glide = null;
+    if (!video.paused) video.pause();
+    const t = stripT();
+    stripDrag = { id: e.pointerId, x0: e.clientX, t0: t, t, lx: e.clientX, lt: performance.now(), v: 0, moved: false };
+  });
+  strip.addEventListener('pointermove', e => {
+    if (!stripDrag || stripDrag.id !== e.pointerId) return;
+    const now = performance.now(), dx = e.clientX - stripDrag.lx, dt = Math.max(1, now - stripDrag.lt);
+    stripDrag.v = 0.7 * stripDrag.v + 0.3 * (dx / dt);   // px per ms, smoothed
+    stripDrag.lx = e.clientX; stripDrag.lt = now;
+    if (Math.abs(e.clientX - stripDrag.x0) > 3) stripDrag.moved = true;
+    stripDrag.t = Math.max(0, Math.min(vDur(), stripDrag.t0 - (e.clientX - stripDrag.x0) / PPS));
+    stripSeek(stripDrag.t);
+  });
+  function stripEnd(e) {
+    if (!stripDrag || stripDrag.id !== e.pointerId) return;
+    const s = stripDrag; stripDrag = null;
+    if (!s.moved) return;
+    if (Math.abs(s.v) > 0.35 && performance.now() - s.lt < 80) {   // a flick: keep gliding and slow down
+      glide = { t: s.t, v: s.v, last: performance.now() };
+      const tick = now => {
+        if (!glide) return;
+        const dt = now - glide.last; glide.last = now;
+        glide.v *= Math.pow(0.994, dt);
+        glide.t = Math.max(0, Math.min(vDur(), glide.t - glide.v * dt / PPS));
+        stripSeek(glide.t);
+        if (Math.abs(glide.v) < 0.03 || glide.t <= 0 || glide.t >= vDur()) { glide = null; act('seek'); return; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } else act('seek');
+  }
+  strip.addEventListener('pointerup', stripEnd);
+  strip.addEventListener('pointercancel', stripEnd);
 
   // Slow motion first (most used), then fast forward (Scott: 2× and 5× to skip through).
   const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5];
@@ -956,8 +1117,12 @@
       if (camStream) {
         camV.srcObject = camStream;
         await camV.play().catch(e => log('Camera preview: ' + errMsg(e), 'w'));
-        camStream.getVideoTracks()[0].addEventListener('ended', () => { log('Camera stopped by the system', 'w'); setCam(false); });
-        log('Instructor cam on');
+        const tr = camStream.getVideoTracks()[0];
+        tr.addEventListener('ended', () => { log('Camera stopped by the system', 'w'); setCam(false); });
+        tr.addEventListener('mute', () => log('Camera picture paused by the system', 'w'));
+        let st = {}; try { st = tr.getSettings(); } catch (e) {}
+        log(`Instructor cam on: ${st.width || '?'}×${st.height || '?'} ${st.facingMode || ''}`);
+        checkCam();
       }
     } else if (!on && camStream) {
       camStream.getTracks().forEach(t => t.stop());
@@ -970,6 +1135,21 @@
     dirty = true;
   }
   $('camBtn').onclick = () => setCam(!camStream);
+  // If the camera opens but no picture arrives, say so (and try to start the preview again).
+  function checkCam() {
+    const s0 = camStream;
+    setTimeout(async () => {
+      if (camStream !== s0 || !camStream) return;
+      if (camV.readyState >= 2 && camV.videoWidth) { log(`Instructor cam picture OK (${camV.videoWidth}×${camV.videoHeight})`); return; }
+      log(`Instructor cam: no picture yet (readyState ${camV.readyState}, paused ${camV.paused}, track ${camStream.getVideoTracks().map(t => t.readyState + (t.muted ? ' muted' : '')).join(',')})`, 'w');
+      try { camV.srcObject = null; camV.srcObject = camStream; await camV.play(); } catch (e) { log('Camera preview retry: ' + errMsg(e), 'w'); }
+      setTimeout(() => {
+        if (camStream !== s0 || !camStream) return;
+        if (camV.readyState >= 2 && camV.videoWidth) log('Instructor cam picture OK after retry');
+        else { log('Instructor cam: still no picture', 'e'); hint('The camera gives no picture. Turn it off and on again; if it still fails, send the diagnostics.', 5000); }
+      }, 1500);
+    }, 1500);
+  }
   function drawCam(c, W, H) {
     if (!camStream || camV.readyState < 2 || !camV.videoWidth) return;
     const short = Math.min(W, H);
