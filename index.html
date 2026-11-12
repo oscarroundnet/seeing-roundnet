@@ -377,7 +377,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 19';
+  const VERSION = 'v1.0 build 20';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -1257,9 +1257,10 @@
     c.lineWidth = Math.max(2, s.w * 0.6);
     c.beginPath(); c.arc(V[0], V[1], r, a1, a1 + d, d < 0); c.stroke();
     c.restore();
-    const mid = a1 + d / 2, lr = r + s.fs * 1.3;
-    drawLabel(c, `${Math.round(deg)}°`, V[0] + Math.cos(mid) * lr, V[1] + Math.sin(mid) * lr, s.fs, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
+    const mid = a1 + d / 2, lr = r + s.fs * 0.85;
+    drawLabel(c, `${Math.round(deg)}°`, V[0] + Math.cos(mid) * lr, V[1] + Math.sin(mid) * lr, s.fs * DEG_K, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
   }
+  const DEG_K = 0.62;   // degree labels are smaller than texts and timers
   // A straight line also shows its angle to the horizontal (0–90°), with a dashed level line
   // and a small arc at the end the line was started from.
   function drawLineAngle(s, c, a, b) {
@@ -1275,8 +1276,8 @@
     let d = a1 - a0; while (d > Math.PI) d -= 2 * Math.PI; while (d <= -Math.PI) d += 2 * Math.PI;
     if (deg >= 1) { c.beginPath(); c.arc(a[0], a[1], r, a0, a0 + d, d < 0); c.stroke(); }
     c.restore();
-    const mid = a0 + d / 2, lr = r + s.fs * 1.4;
-    drawLabel(c, `${Math.round(deg)}°`, a[0] + Math.cos(mid) * lr, a[1] + Math.sin(mid) * lr - (deg < 8 ? s.fs * 0.9 : 0), s.fs, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
+    const mid = a0 + d / 2, lr = r + s.fs * 0.95;
+    drawLabel(c, `${Math.round(deg)}°`, a[0] + Math.cos(mid) * lr, a[1] + Math.sin(mid) * lr - (deg < 8 ? s.fs * 0.6 : 0), s.fs * DEG_K, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
   }
   // The box a text or timer label covers (base coordinates), to grab and move it.
   function labelBox(s) {
