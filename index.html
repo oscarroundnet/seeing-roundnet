@@ -117,7 +117,7 @@
   #bmMarks i { position:absolute; top:2px; width:3px; height:8px; border-radius:2px; transform:translateX(-1px); }
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
   .chip { min-height:34px !important; padding:4px 12px !important; margin:0 !important; border-radius:17px !important; border:1px solid var(--azure); background:var(--bg) !important; font-size:13px !important; display:inline-flex; align-items:center; gap:6px; }
-  .chip i { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .chip i { width:11px; height:11px; border-radius:50%; display:inline-block; flex:none; }
   .chip.sel { background:var(--azure) !important; border-color:var(--accent); color:#fff; }
   .newtag { display:flex; gap:6px; margin-bottom:10px; }
   .newtag input, #bmNote { flex:1; min-height:38px; border-radius:10px; border:1px solid var(--azure); background:var(--bg); color:var(--fg); font:500 14px Montserrat, sans-serif; padding:6px 10px; }
@@ -377,7 +377,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 18';
+  const VERSION = 'v1.0 build 19';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -1595,7 +1595,9 @@
   const TAG_COLORS = ['#1484C4', '#4FB3E8', '#E3E3E3', '#8FD0F2', '#5B9BC0', '#B7C9D3', '#2E7FB0', '#D6E6EE'];
   let bookmarks = [], videoKey = '', bmEditing = null, bmFilter = null;
   const allTags = () => DEFAULT_TAGS.concat(prefs.customTags || []);
-  const tagColor = t => TAG_COLORS[Math.max(0, allTags().indexOf(t)) % TAG_COLORS.length];
+  // Scott's colour code (as in RR+) for the five base tags; custom tags take the blue palette.
+  const RR_COLORS = { Serve: '#ED1C2E', Receive: '#8B48BB', Set: '#E5B900', Hit: '#0579C9', Defense: '#14CC5C' };
+  const tagColor = t => RR_COLORS[t] || TAG_COLORS[Math.max(0, (prefs.customTags || []).indexOf(t)) % TAG_COLORS.length];
   function loadBookmarks() {
     try { bookmarks = JSON.parse(localStorage.getItem('sr-bm-' + videoKey)) || []; } catch (e) { bookmarks = []; }
     bmFilter = null; renderMarks();
