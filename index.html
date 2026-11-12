@@ -86,7 +86,7 @@
   .rail { position:absolute; z-index:5; display:flex; flex-direction:column; gap:10px; top:calc(env(safe-area-inset-top) + 58px); }
   #tools { right:calc(env(safe-area-inset-right) + 10px); align-items:flex-end; }
   #leftRail { left:calc(env(safe-area-inset-left) + 10px); align-items:flex-start; }
-  .grp { display:flex; flex-direction:row-reverse; align-items:center; gap:8px; }
+  .grp { display:flex; flex-direction:row-reverse; align-items:center; gap:2px; }
   .opts { display:none; gap:2px; padding:3px; border-radius:24px; background:rgba(5,17,23,.9); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
   .grp.open .opts { display:flex; }
   .opts .fb { width:40px; height:40px; background:transparent; }
@@ -103,7 +103,8 @@
   #tools.dragging { transition:none; opacity:.85; z-index:30; }
   #tools.dragging .opts { display:none !important; }
 
-  #bar { grid-area:bar; padding:6px 12px 10px; display:flex; flex-direction:column; gap:6px; }
+  #bar { grid-area:bar; padding:6px 12px 2px; display:flex; flex-direction:column; gap:6px; }
+  @media (orientation: portrait) { #app { padding-bottom:max(6px, calc(env(safe-area-inset-bottom) - 14px)); } }
   .srow { display:flex; align-items:center; gap:10px; }
   #strip { position:relative; height:58px; border-radius:10px; overflow:hidden; background:var(--panel2); touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none; }
   #strip:active { cursor:grabbing; }
@@ -284,9 +285,9 @@
     <div class="grp" id="gSize">
       <button class="fb cur" id="sizeCur" aria-label="Line thickness (tap to change)"><i class="dot"></i></button>
       <div class="opts">
-        <button class="fb siz" data-s="0.6" aria-label="Thin"><i class="dot" style="width:5px;height:5px"></i></button>
-        <button class="fb siz" data-s="1" aria-label="Medium"><i class="dot" style="width:9px;height:9px"></i></button>
-        <button class="fb siz" data-s="1.7" aria-label="Thick"><i class="dot" style="width:14px;height:14px"></i></button>
+        <button class="fb siz" data-s="1" aria-label="Medium"><i class="dot" style="width:8px;height:8px"></i></button>
+        <button class="fb siz" data-s="1.7" aria-label="Thick"><i class="dot" style="width:12px;height:12px"></i></button>
+        <button class="fb siz" data-s="2.6" aria-label="Extra thick"><i class="dot" style="width:17px;height:17px"></i></button>
       </div>
     </div>
     <div class="tactions">
@@ -376,7 +377,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 16';
+  const VERSION = 'v1.0 build 18';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -565,7 +566,7 @@
   const frame = document.createElement('canvas'), fctx = frame.getContext('2d');   // last good video frame
   let frameValid = false, lastFrameTime = -1, blankFrames = 0;
   let strokes = [], current = null, pendingAngle = null, textPending = null, runningTimer = null;
-  let tool = prefs.tool || 'pen', color = prefs.color || '#FF3B30', sizeK = prefs.sizeK || 1;
+  let tool = prefs.tool || 'pen', color = prefs.color || '#FF3B30', sizeK = prefs.sizeK >= 1 ? prefs.sizeK : 1;   // the thinnest size (0.6) was removed
   let fps = 30, fpsSamples = [];
   let recorder = null, micStream = null, wakeLock = null;
   let recState = 'idle';          // idle | recording | paused | finishing
@@ -1092,7 +1093,7 @@
   function selectSize(k, quiet) {
     sizeK = k; prefs.sizeK = k; savePrefs();
     document.querySelectorAll('.siz').forEach(b => b.classList.toggle('on', +b.dataset.s === k));
-    const px = Math.round(9 * Math.sqrt(k) * (k < 1 ? 0.8 : 1));
+    const px = Math.round(8 * Math.sqrt(k));
     const d = $('sizeCur').querySelector('.dot'); d.style.width = d.style.height = px + 'px';
     if (!quiet) closeMenus();
   }
@@ -1150,6 +1151,33 @@
       }, 1500);
     }, 1500);
   }
+  // Keeps the cam out from under the buttons that float over the video (landscape header,
+  // tool rails), so it can always be seen and grabbed.
+  let camObst = [], camObstAt = 0;
+  function camClear(x, y, w, h, m, W, H, corner) {
+    const now = performance.now();
+    if (now - camObstAt > 500) {
+      camObstAt = now;
+      const vr = view.getBoundingClientRect(), k = vr.width ? view.width / vr.width : 1;
+      camObst = [...document.querySelectorAll('header button, #leftRail > *, #tools > *')].map(el => el.getBoundingClientRect())
+        .filter(r => r.width && r.height)
+        .map(r => ({ x0: (r.left - vr.left) * k, x1: (r.right - vr.left) * k, y0: (r.top - vr.top) * k, y1: (r.bottom - vr.top) * k }));
+    }
+    const hits = (X, Y) => camObst.filter(o => o.x1 > X && o.x0 < X + w && o.y1 > Y && o.y0 < Y + h);
+    let nx = x, ny = y;
+    for (let i = 0; i < 4; i++) {          // slide along the side, away from the corner
+      const hs = hits(nx, ny); if (!hs.length) return [nx, ny];
+      ny = corner[0] === 't' ? Math.max(...hs.map(o => o.y1)) + m : Math.min(...hs.map(o => o.y0)) - h - m;
+      if (ny < 0 || ny > H - h) break;
+    }
+    nx = x; ny = y;
+    for (let i = 0; i < 4; i++) {          // or along the top / bottom edge
+      const hs = hits(nx, ny); if (!hs.length) return [nx, ny];
+      nx = corner[1] === 'l' ? Math.max(...hs.map(o => o.x1)) + m : Math.min(...hs.map(o => o.x0)) - w - m;
+      if (nx < 0 || nx > W - w) break;
+    }
+    return [x, y];
+  }
   function drawCam(c, W, H) {
     if (!camStream || camV.readyState < 2 || !camV.videoWidth) return;
     const short = Math.min(W, H);
@@ -1159,6 +1187,7 @@
     const corner = prefs.camPos || ('b' + (document.body.classList.contains('lefty') ? 'r' : 'l'));   // default: bottom, opposite the tools
     let x = corner[1] === 'r' ? W - w - m : m, y = corner[0] === 'b' ? H - h - m : m;
     if (camDrag) { x = Math.min(W - w, Math.max(0, camDrag.x)); y = Math.min(H - h, Math.max(0, camDrag.y)); }
+    else [x, y] = camClear(x, y, w, h, m, W, H, corner);
     camRect = { x, y, w, h, m };
     c.save();
     roundRect(c, x, y, w, h, r); c.clip();
@@ -1231,6 +1260,42 @@
     const mid = a1 + d / 2, lr = r + s.fs * 1.3;
     drawLabel(c, `${Math.round(deg)}°`, V[0] + Math.cos(mid) * lr, V[1] + Math.sin(mid) * lr, s.fs, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
   }
+  // A straight line also shows its angle to the horizontal (0–90°), with a dashed level line
+  // and a small arc at the end the line was started from.
+  function drawLineAngle(s, c, a, b) {
+    const len = dist(a, b); if (len < s.fs * 2.5) return;
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const deg = Math.atan2(Math.abs(dy), Math.abs(dx)) * 180 / Math.PI;
+    const dir = dx >= 0 ? 1 : -1, r = Math.max(14, Math.min(s.fs * 2.2, len * 0.4));
+    c.save();
+    c.lineWidth = Math.max(1.5, s.w * 0.45); c.setLineDash([s.w * 1.6, s.w * 1.6]);
+    c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(a[0] + dir * r * 1.25, a[1]); c.stroke();
+    c.setLineDash([]);
+    const a0 = dir > 0 ? 0 : Math.PI, a1 = Math.atan2(dy, dx);
+    let d = a1 - a0; while (d > Math.PI) d -= 2 * Math.PI; while (d <= -Math.PI) d += 2 * Math.PI;
+    if (deg >= 1) { c.beginPath(); c.arc(a[0], a[1], r, a0, a0 + d, d < 0); c.stroke(); }
+    c.restore();
+    const mid = a0 + d / 2, lr = r + s.fs * 1.4;
+    drawLabel(c, `${Math.round(deg)}°`, a[0] + Math.cos(mid) * lr, a[1] + Math.sin(mid) * lr - (deg < 8 ? s.fs * 0.9 : 0), s.fs, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
+  }
+  // The box a text or timer label covers (base coordinates), to grab and move it.
+  function labelBox(s) {
+    const c = ctx; c.save();
+    c.font = `700 ${Math.round(s.fs)}px Montserrat, -apple-system, system-ui, sans-serif`;
+    const txt = s.tool === 'timer' ? '-00.00 s' : s.text || '';
+    const w = c.measureText(txt).width; c.restore();
+    const padX = s.fs * 0.4, h = s.fs * 1.45, x = s.pts[0][0], y = s.pts[0][1];
+    const bx = s.tool === 'timer' ? x - w / 2 - padX : x - padX;
+    return { x: bx - 6, y: y - h / 2 - 6, w: w + padX * 2 + 12, h: h + 12 };
+  }
+  function hitLabel(p, kind) {
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const s = strokes[i]; if (s.tool !== kind) continue;
+      const b = labelBox(s);
+      if (p[0] >= b.x && p[0] <= b.x + b.w && p[1] >= b.y && p[1] <= b.y + b.h) return s;
+    }
+    return null;
+  }
   function drawTimer(s, c) {
     const stopped = s.t1 != null;
     const dt = (stopped ? s.t1 : video.currentTime) - s.t0;
@@ -1255,6 +1320,7 @@
       }
       case 'line':
         c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+        drawLineAngle(s, c, a, b);
         break;
       case 'circle': {
         const rx = Math.abs(b[0] - a[0]) / 2, ry = Math.abs(b[1] - a[1]) / 2;
@@ -1288,7 +1354,7 @@
   const logShape = (s, type) => act(type || 'stroke', { tool: s.tool, color: s.color, w: s.w, pts: s.pts, text: s.text, t0: s.t0 });
 
   const pointers = new Map();
-  let pinch = null;
+  let pinch = null, labelDrag = null;
   const area = $('stageWrap');   // the whole video area, black bands included
   area.addEventListener('pointerdown', e => {
     if (e.target.closest('#textBox')) return;
@@ -1312,7 +1378,11 @@
     }
     if (pointers.size > 2 || pinch) return;
     const p = pos(e);
-    if (tool === 'text' || tool === 'timer') { current = Object.assign(newShape(tool, p), { tap: true }); return; }
+    if (tool === 'text' || tool === 'timer') {
+      const hit = hitLabel(p, tool);
+      if (hit) { labelDrag = { s: hit, id: e.pointerId, p0: p, start: hit.pts[0].slice(), moved: false }; return; }
+      current = Object.assign(newShape(tool, p), { tap: true }); return;
+    }
     if (tool === 'angle' && pendingAngle && strokes[strokes.length - 1] === pendingAngle) {
       current = strokes.pop();                         // second line of the angle, from the same joint
       current.reopened = true; current.pts[2] = p;
@@ -1337,6 +1407,13 @@
       Z.x = mid[0] - pinch.base[0] * Z.s; Z.y = mid[1] - pinch.base[1] * Z.s;
       clampZoom();
       return;
+    }
+    if (labelDrag && labelDrag.id === e.pointerId) {
+      const p = pos(e), dx = p[0] - labelDrag.p0[0], dy = p[1] - labelDrag.p0[1];
+      if (!labelDrag.moved && Math.hypot(dx, dy) < Math.max(6, baseW() * 1.5)) return;
+      labelDrag.moved = true;
+      labelDrag.s.pts[0] = [labelDrag.start[0] + dx, labelDrag.start[1] + dy];
+      redrawInk(); return;
     }
     if (!current || current.tap || !pointers.has(e.pointerId)) return;
     const p = pos(e);
@@ -1391,6 +1468,13 @@
       act('camMove', { pos: prefs.camPos });
       return;
     }
+    if (labelDrag && labelDrag.id === e.pointerId) {
+      pointers.delete(e.pointerId);
+      const L = labelDrag; labelDrag = null;
+      if (L.moved) { act('move', { tool: L.s.tool, pts: L.s.pts }); redrawInk(); return; }
+      if (L.s.tool === 'text') { strokes.splice(strokes.indexOf(L.s), 1); openTextBox(L.s); redrawInk(); return; }   // tap on a text: edit it
+      current = Object.assign(newShape('timer', L.p0), { tap: true }); endShape(); return;   // tap on a timer: as before
+    }
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (pinch) {
@@ -1421,7 +1505,7 @@
     const r = view.getBoundingClientRect();
     const x = (s.pts[0][0] * Z.s + Z.x) * r.width / view.width, y = (s.pts[0][1] * Z.s + Z.y) * r.height / view.height;
     const tb = $('textBox');
-    tb.value = ''; tb.hidden = false;
+    tb.value = s.text || ''; tb.hidden = false;
     tb.style.left = Math.max(0, Math.min(x - 10, r.width - tb.offsetWidth)) + 'px';
     tb.style.top = Math.max(0, Math.min(y - 20, r.height - 44)) + 'px';
     tb.style.color = s.color === '#000000' ? '#fff' : s.color;
@@ -1457,6 +1541,21 @@
   const setBarH = () => document.documentElement.style.setProperty('--barH', $('bar').offsetHeight + 'px');
   if (window.ResizeObserver) new ResizeObserver(setBarH).observe($('bar'));
   setBarH();
+  // iOS 26.0 can lay out a full-screen home-screen app as if Safari's toolbar were still there,
+  // leaving an empty band at the bottom (fixed by Apple in iOS 26.1). Stretch the app to the screen.
+  let screenLogged = false;
+  function fixStandaloneHeight() {
+    const standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    if (!standalone || !/iPhone|iPod/.test(navigator.userAgent)) return;
+    const land = innerWidth > innerHeight;
+    const full = land ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+    const app = $('app'); app.style.bottom = ''; app.style.height = '';
+    const h = Math.round(app.getBoundingClientRect().height);
+    if (!screenLogged) { screenLogged = true; log(`Screen: app ${h} px, window ${innerHeight} px, screen ${full} px (${land ? 'landscape' : 'portrait'})`); }
+    if (full - h > 20) { app.style.bottom = 'auto'; app.style.height = full + 'px'; log(`App stretched to the full screen: ${h} → ${full} px`, 'w'); }
+  }
+  fixStandaloneHeight();
+  addEventListener('resize', () => setTimeout(fixStandaloneHeight, 300));
   (() => {
     const rail = $('tools');
     let start = null, dragged = false, justDragged = false;
