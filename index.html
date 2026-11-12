@@ -377,7 +377,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 20';
+  const VERSION = 'v1.0 build 21';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -1542,18 +1542,19 @@
   const setBarH = () => document.documentElement.style.setProperty('--barH', $('bar').offsetHeight + 'px');
   if (window.ResizeObserver) new ResizeObserver(setBarH).observe($('bar'));
   setBarH();
-  // iOS 26.0 can lay out a full-screen home-screen app as if Safari's toolbar were still there,
-  // leaving an empty band at the bottom (fixed by Apple in iOS 26.1). Stretch the app to the screen.
+  // iOS 26.0 can lay out a full-screen home-screen app shorter than the window it is shown in,
+  // leaving an empty band at the bottom (fixed by Apple in iOS 26.1). Stretch the app to the
+  // window, never further: on some iPhones the page area is shorter than the screen itself.
   let screenLogged = false;
   function fixStandaloneHeight() {
-    const standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
-    if (!standalone || !/iPhone|iPod/.test(navigator.userAgent)) return;
-    const land = innerWidth > innerHeight;
-    const full = land ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
     const app = $('app'); app.style.bottom = ''; app.style.height = '';
-    const h = Math.round(app.getBoundingClientRect().height);
-    if (!screenLogged) { screenLogged = true; log(`Screen: app ${h} px, window ${innerHeight} px, screen ${full} px (${land ? 'landscape' : 'portrait'})`); }
-    if (full - h > 20) { app.style.bottom = 'auto'; app.style.height = full + 'px'; log(`App stretched to the full screen: ${h} → ${full} px`, 'w'); }
+    const h = Math.round(app.getBoundingClientRect().height), win = Math.round(window.innerHeight);
+    if (!screenLogged) {
+      screenLogged = true;
+      const standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+      log(`Screen: app ${h} px, window ${win} px, screen ${Math.max(screen.width, screen.height)} px, standalone ${standalone}`);
+    }
+    if (win - h > 20) { app.style.bottom = 'auto'; app.style.height = win + 'px'; log(`App stretched to the window: ${h} → ${win} px`, 'w'); }
   }
   fixStandaloneHeight();
   addEventListener('resize', () => setTimeout(fixStandaloneHeight, 300));
