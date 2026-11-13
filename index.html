@@ -377,7 +377,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 21';
+  const VERSION = 'v1.0 build 22';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -635,6 +635,7 @@
   }
   function showApp() {
     $('home').hidden = true; $('app').hidden = false;
+    setTimeout(fixStandaloneHeight, 50);
     fitStage();
   }
   $('homeBtn').onclick = showHome;
@@ -1121,6 +1122,7 @@
         const tr = camStream.getVideoTracks()[0];
         tr.addEventListener('ended', () => { log('Camera stopped by the system', 'w'); setCam(false); });
         tr.addEventListener('mute', () => log('Camera picture paused by the system', 'w'));
+        tr.addEventListener('unmute', () => log('Camera picture back'));
         let st = {}; try { st = tr.getSettings(); } catch (e) {}
         log(`Instructor cam on: ${st.width || '?'}×${st.height || '?'} ${st.facingMode || ''}`);
         checkCam();
@@ -1547,7 +1549,9 @@
   // window, never further: on some iPhones the page area is shorter than the screen itself.
   let screenLogged = false;
   function fixStandaloneHeight() {
-    const app = $('app'); app.style.bottom = ''; app.style.height = '';
+    const app = $('app');
+    if (app.hidden) return;                       // measure only once the analysis screen is shown
+    app.style.bottom = ''; app.style.height = '';
     const h = Math.round(app.getBoundingClientRect().height), win = Math.round(window.innerHeight);
     if (!screenLogged) {
       screenLogged = true;
@@ -1955,14 +1959,30 @@
       log('Microphone refused: ' + errMsg(e), 'e');
       return;
     }
-    micStream.getAudioTracks().forEach(t => t.addEventListener('ended', () => log('Microphone track ended', 'w')));
+    micStream.getAudioTracks().forEach(t => {
+      t.addEventListener('ended', () => { log('Microphone track ended', 'e'); if (recState === 'recording') hint('The iPhone stopped the microphone: your voice is no longer recorded.', 6000); });
+      // iOS pauses the microphone during a call, Siri or a system alert (e.g. low battery):
+      // say when it happens and when it comes back, so a silent part never goes unnoticed.
+      let mutedAt = 0, muteTimer = null;
+      t.addEventListener('mute', () => {
+        mutedAt = performance.now(); log('Microphone paused by the system', 'w');
+        clearTimeout(muteTimer);
+        muteTimer = setTimeout(() => { if (t.muted && recState === 'recording') hint('The iPhone paused the microphone: your voice is not recorded right now.', 6000); }, 3000);
+      });
+      t.addEventListener('unmute', () => {
+        clearTimeout(muteTimer);
+        log(`Microphone back after ${mutedAt ? ((performance.now() - mutedAt) / 1000).toFixed(1) : '?'} s`);
+        if (recState === 'recording' && mutedAt && performance.now() - mutedAt > 3000) hint('Microphone back: your voice is recorded again.', 3000);
+        mutedAt = 0;
+      });
+    });
 
     try { if (navigator.storage && navigator.storage.persist) log('Persistent storage: ' + await navigator.storage.persist()); } catch (e) {}
     const st = await storageInfo();
     log('Storage: ' + st.text);
     if (st.quota && st.quota - st.usage < 3 * 1024 * MB) log('Less than 3 GB available for the app: long recordings may not fit', 'w');
 
-    await Promise.all([clearStore('chunks'), clearStore('out'), ...['session', 'actions', 'export'].map(delMeta)]).catch(e => log('Clear storage failed: ' + errMsg(e), 'w'));
+    await Promise.all([clearStore('chunks'), clearStore('out'), removeOpfsFile(), ...['session', 'actions', 'export'].map(delMeta)]).catch(e => log('Clear storage failed: ' + errMsg(e), 'w'));
     hideResult(); hideBanner(); closeSheet(); lastStored = null; $('exportBtn').disabled = true;
     rawBlob = null;
 
@@ -2086,8 +2106,71 @@
     }
   }
 
-  async function assembleOutput(patches, type) {
+  // The finished video as ONE file on the phone's disk (Origin Private File System), written
+  // part by part in a background worker. iOS could not read the ~250-part video to share it
+  // ("error while reading files"); a single plain file is what the share sheet expects.
+  // Reading every part here also checks that the saved video is intact.
+  const OPFS_NAME = 'sr-export.mp4';
+  const OPFS_WORKER = `onmessage = async e => {
+    const { name, parts } = e.data; let k = 0;
+    try {
+      const root = await navigator.storage.getDirectory();
+      const fh = await root.getFileHandle(name, { create: true });
+      const h = await fh.createSyncAccessHandle();
+      h.truncate(0);
+      let at = 0;
+      for (k = 0; k < parts.length; k++) {
+        const p = parts[k];
+        const u = new Uint8Array(await p.blob.arrayBuffer());
+        for (const q of p.patches) u.set(q.bytes, q.off);
+        let w = 0; while (w < u.length) w += h.write(u.subarray(w), { at: at + w });
+        at += u.length;
+        if (k % 6 === 0) postMessage({ progress: (k + 1) / parts.length });
+      }
+      h.flush(); h.close();
+      postMessage({ done: true, size: at });
+    } catch (err) { postMessage({ error: (err && err.name ? err.name + ': ' + err.message : String(err)), part: k }); }
+  };`;
+  async function removeOpfsFile() {
+    try { const root = await navigator.storage.getDirectory(); await root.removeEntry(OPFS_NAME); } catch (e) {}
+  }
+  async function writeOpfsFile(recs, patches, type, onProgress) {
+    if (!navigator.storage || !navigator.storage.getDirectory || !window.Worker) throw new Error('not supported by this browser');
+    const total = recs.reduce((n, r) => n + r.size, 0);
+    const parts = recs.map(r => {
+      const s = r.start, e = r.start + r.size, ps = [];
+      for (const p of (patches || [])) {
+        if (!(p.pos < e && p.pos + p.bytes.length > s)) continue;
+        const a = Math.max(p.pos, s), z = Math.min(p.pos + p.bytes.length, e);
+        ps.push({ off: a - s, bytes: p.bytes.slice(a - p.pos, z - p.pos) });
+      }
+      return { blob: asBlob(r.blob), patches: ps };
+    });
+    const url = URL.createObjectURL(new Blob([OPFS_WORKER], { type: 'text/javascript' }));
+    const w = new Worker(url);
+    const t = performance.now();
+    try {
+      const res = await new Promise((ok, ko) => {
+        w.onmessage = e => {
+          const d = e.data;
+          if (d.progress != null) { if (onProgress) onProgress(d.progress); }
+          else if (d.done) ok(d);
+          else ko(new Error(`${d.error} (part ${d.part + 1} of ${parts.length})`));
+        };
+        w.onerror = e => ko(new Error(e.message || 'worker error'));
+        w.postMessage({ name: OPFS_NAME, parts });
+      });
+      if (res.size !== total) throw new Error(`size ${res.size} instead of ${total}`);
+    } finally { w.terminate(); URL.revokeObjectURL(url); }
+    const root = await navigator.storage.getDirectory();
+    const f = await (await root.getFileHandle(OPFS_NAME)).getFile();
+    log(`Video file written to the phone: ${mbs(f.size)} in ${((performance.now() - t) / 1000).toFixed(1)} s (all ${parts.length} parts readable)`);
+    return new File([f], fileName(type), { type });
+  }
+  async function assembleOutput(patches, type, onProgress) {
     const recs = (await getAll('out')).sort((a, b) => a.i - b.i);
+    try { return await writeOpfsFile(recs, patches, type, onProgress); }
+    catch (e) { log('Single video file not possible, using the parts: ' + errMsg(e), 'w'); }
     const pieces = [];
     for (const r of recs) {
       const s = r.start, e = r.start + r.size;
@@ -2117,7 +2200,7 @@
 
   async function toStandardMp4(raw, onProgress) {
     const { Input, Output, Conversion, ALL_FORMATS, BlobSource, StreamTarget, Mp4OutputFormat } = await loadMediabunny();
-    await clearStore('out');
+    await clearStore('out'); await removeOpfsFile();
     const writer = new SpillWriter();
     const writable = new WritableStream({ write: chunk => writer.write(chunk.data, chunk.position) });
     const input = new Input({ source: new BlobSource(raw), formats: ALL_FORMATS });
@@ -2135,7 +2218,7 @@
     await writer.flush();
     log(`Converted file: ${mbs(writer.end)} in ${writer.idx} parts, ${writer.patches.length} header patch(es)`);
     await setMeta('export', { patches: writer.patches, size: writer.end });
-    return assembleOutput(writer.patches, 'video/mp4');
+    return assembleOutput(writer.patches, 'video/mp4', fileProgress);
   }
 
   // Joins several recorded segments into one video, copying the compressed data (no re-encoding).
@@ -2152,7 +2235,7 @@
     if (!segs.length) throw new Error('no readable segment');
     const vCodec = segs[0].v.codec, aCodec = segs[0].a ? segs[0].a.codec : null;
     const mp4 = ['avc', 'hevc', 'av1', 'vp9'].includes(vCodec) && (!aCodec || ['aac', 'opus', 'mp3'].includes(aCodec));
-    await clearStore('out');
+    await clearStore('out'); await removeOpfsFile();
     const writer = new SpillWriter();
     const writable = new WritableStream({ write: chunk => writer.write(chunk.data, chunk.position) });
     const output = new Output({
@@ -2210,9 +2293,13 @@
     log(`Joined ${joined} segment(s): ${mbs(writer.end)} in ${writer.idx} parts, ${writer.patches.length} header patch(es)`);
     const type = mp4 ? 'video/mp4' : 'video/webm';
     await setMeta('export', { patches: writer.patches, size: writer.end, type });
-    return assembleOutput(writer.patches, type);
+    return assembleOutput(writer.patches, type, fileProgress);
   }
 
+  function fileProgress(p) {
+    $('progress').style.display = ''; $('progress').value = p;
+    $('resultText').textContent = `Saving the video file… ${Math.round(p * 100)}%`;
+  }
   async function finalizeFromStorage(durationMs) {
     showResult('Preparing video…');
     $('progress').style.display = ''; $('progress').value = 0;
@@ -2327,7 +2414,7 @@
     if (!confirm('Delete this recording from the phone?')) return;
     hideResult();
     rawBlob = null; lastStored = null; $('exportBtn').disabled = true; closeSheet();
-    await Promise.all(['chunks', 'out', 'meta'].map(clearStore)).catch(() => {});
+    await Promise.all(['chunks', 'out', 'meta'].map(clearStore).concat(removeOpfsFile())).catch(() => {});
     log('Recording deleted');
   };
 
@@ -2343,7 +2430,8 @@
       if (!parts.length) return;
       // The last exported video is still on the phone: offer it on the home screen.
       lastStored = async () => {
-        const blob = await assembleOutput(exp && exp.patches, 'video/mp4');
+        showResult('Preparing video…');
+        const blob = await assembleOutput(exp && exp.patches, 'video/mp4', fileProgress);
         setResultFile(blob, session.durationMs, 'standard MP4 (restored)');
       };
       $('lastBtn').hidden = !$('app').hidden;
@@ -2360,7 +2448,7 @@
     $('dismiss').onclick = async () => {
       if (!confirm('Delete the saved recording?')) return;
       hideBanner();
-      await Promise.all(['chunks', 'out', 'meta'].map(clearStore)).catch(() => {});
+      await Promise.all(['chunks', 'out', 'meta'].map(clearStore).concat(removeOpfsFile())).catch(() => {});
     };
   }
 
