@@ -368,7 +368,7 @@
     <label class="setrow">Drawing tools position <small style="font-weight:500;color:var(--muted)">(or drag them)</small>
       <select id="toolPos" aria-label="Drawing tools position"><option value="tr">Top right</option><option value="tl">Top left</option><option value="br">Bottom right</option><option value="bl">Bottom left</option></select></label>
     <label class="setrow"><span>Include the match sound in recordings<br><small style="font-weight:500;color:var(--muted)">Added under your voice, at a lower volume. Choose before recording.</small></span> <input type="checkbox" id="matchAudio"></label>
-    <div class="setbtns"><button id="diag">Send a report</button><button id="logBtn">Show log</button></div>
+    <div class="setbtns"><button id="diag">Send a report</button><button id="diagCopy">Copy report</button><button id="logBtn">Show log</button></div>
     <div id="info"></div>
     <div id="debug"></div>
   </div>
@@ -377,7 +377,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 23';
+  const VERSION = 'v1.0 build 24';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -2132,6 +2132,7 @@
         at += u.length;
         if (k % 6 === 0) postMessage({ progress: (k + 1) / parts.length });
       }
+      postMessage({ closing: true });
       h.flush(); h.close();
       postMessage({ done: true, size: at });
     } catch (err) { postMessage({ error: (err && err.name ? err.name + ': ' + err.message : String(err)), part: k }); }
@@ -2154,6 +2155,7 @@
     const st = await storageInfo();
     log(`Writing the video as one file: ${mbs(total)} · ${st.text}`);
     if (st.quota && st.quota - st.usage < total * 1.02) log(`Probably not enough room for the file: ${mbs(st.quota - st.usage)} free for ${mbs(total)}`, 'w');
+    if (!wakeLock) keepAwake();   // keep the screen on while the file is written (iOS may pause a sleeping page)
     const url = URL.createObjectURL(new Blob([OPFS_WORKER], { type: 'text/javascript' }));
     const w = new Worker(url);
     const t = performance.now();
@@ -2170,6 +2172,10 @@
             if (onProgress) onProgress(d.progress);
             while (quarter < 3 && d.progress >= (quarter + 1) / 4) { quarter++; log(`File writing: ${quarter * 25}% after ${((performance.now() - t) / 1000).toFixed(1)} s`); }
           }
+          else if (d.closing) {   // the phone finishes writing to disk: this can take a while for a big file
+            log(`File writing: closing the file after ${((performance.now() - t) / 1000).toFixed(1)} s`);
+            clearTimeout(watchdog); watchdog = setTimeout(() => ko(new Error('closing the file took more than 3 min')), 180000);
+          }
           else if (d.done) ok(d);
           else ko(new Error(`${d.error} (part ${d.part + 1} of ${parts.length})`));
         };
@@ -2178,20 +2184,32 @@
       });
       if (res.size !== total) throw new Error(`size ${res.size} instead of ${total}`);
     } catch (e) { removeOpfsFile(); throw e; }
-    finally { clearTimeout(watchdog); w.terminate(); URL.revokeObjectURL(url); }
+    finally { clearTimeout(watchdog); w.terminate(); URL.revokeObjectURL(url); if (recState === 'idle') releaseAwake(); }
+    // Check the file on disk before using it: right size, and its last bytes equal the video's.
     const root = await navigator.storage.getDirectory();
-    const f = await (await root.getFileHandle(OPFS_NAME)).getFile();
-    log(`Video file written to the phone: ${mbs(f.size)} in ${((performance.now() - t) / 1000).toFixed(1)} s (all ${parts.length} parts readable)`);
-    // Keep a single copy on the phone: the file replaces the parts.
+    let f = null;
+    for (let i = 0; i < 4; i++) {
+      f = await (await root.getFileHandle(OPFS_NAME)).getFile();
+      if (f.size === total) break;
+      log(`Video file reads ${mbs(f.size)} instead of ${mbs(total)}, checking again`, 'w');
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    if (!f || f.size !== total) throw new Error(`the written file is ${mbs(f ? f.size : 0)} instead of ${mbs(total)}`);
+    const lastRec = recs[recs.length - 1], n = Math.min(4096, lastRec.size);
+    const want = new Uint8Array(await asBlob(lastRec.blob).slice(lastRec.size - n).arrayBuffer());
+    const got = new Uint8Array(await f.slice(total - n).arrayBuffer());
+    for (const p of (patches || [])) for (let j = 0; j < p.bytes.length; j++) { const k = p.pos + j - (total - n); if (k >= 0 && k < n) want[k] = p.bytes[j]; }
+    if (want.some((b, k) => b !== got[k])) throw new Error('the end of the written file does not match the video');
+    log(`Video file written to the phone and checked: ${mbs(f.size)} in ${((performance.now() - t) / 1000).toFixed(1)} s (all ${parts.length} parts readable)`);
+    // The converted parts are kept too, as a safety copy, until the next recording or a delete.
     const exp = await getMeta('export').catch(() => null);
     await setMeta('export', Object.assign({}, exp || {}, { opfs: true, size: f.size, type }));
-    await clearStore('out').catch(() => {});
     return new File([f], fileName(type), { type });
   }
   async function readOpfsFile(exp) {
     const root = await navigator.storage.getDirectory();
     const f = await (await root.getFileHandle(OPFS_NAME)).getFile();
-    if (exp && exp.size && f.size !== exp.size) throw new Error(`file is ${mbs(f.size)} instead of ${mbs(exp.size)}`);
+    if (!f.size || (exp && exp.size && f.size !== exp.size)) throw new Error(`file is ${mbs(f.size)} instead of ${mbs(exp && exp.size || 0)}`);
     const type = (exp && exp.type) || 'video/mp4';
     return new File([f], fileName(type), { type });
   }
@@ -2215,14 +2233,16 @@
         catch (e) { log('Saved video file unreadable: ' + errMsg(e), 'e'); }
       }
       const parts = await getAll('out').catch(() => []);
-      if (!parts.length) { showResult('⚠︎ The last video is no longer on the phone.'); return; }
-      setResultFile(await assembleOutput(exp && exp.patches, 'video/mp4', fileProgress), session.durationMs, 'standard MP4 (restored)');
+      if (!parts.length) { showResult('⚠︎ The last video is no longer on the phone.'); log('Restore: no saved video found', 'e'); return; }
+      try { setResultFile(await assembleOutput(exp && exp.patches, 'video/mp4', fileProgress), session.durationMs, 'standard MP4 (restored)'); }
+      catch (e) { showResult('⚠︎ Could not reopen the last video: ' + errMsg(e)); log('Restore failed: ' + errMsg(e), 'e'); }
     };
   }
   let partsOnly = false;
   async function assembleOutput(patches, type, onProgress) {
     partsOnly = false;
     const recs = (await getAll('out')).sort((a, b) => a.i - b.i);
+    if (!recs.length) throw new Error('the converted video is no longer on the phone');
     try { return await writeOpfsFile(recs, patches, type, onProgress); }
     catch (e) { log('Single video file not possible, using the parts: ' + errMsg(e), 'w'); partsOnly = true; }
     const pieces = [];
@@ -2423,7 +2443,7 @@
     $('preview').src = resultUrl;
     $('progress').style.display = 'none';
     $('resultText').textContent = `Recording ready · ${durationMs ? fmtRec(durationMs) + ' · ' : ''}${mbs(blob.size)} · ${note}`
-      + (partsOnly && !isRaw ? '. ⚠︎ It could not be prepared as one file (is the iPhone storage full?): sharing may fail. Free some space, then reopen it from the home screen.' : '');
+      + (partsOnly && !isRaw ? '. ⚠︎ It could not be prepared as one file, so sharing may fail: try Save to Files, and send a report (Copy report in Settings).' : '');
     $('resultText').className = isRaw || partsOnly ? 'warn' : '';
     $('save').disabled = false; $('saveFile').disabled = false;
     $('saveRaw').style.display = (DEBUG && rawBlob && !isRaw) ? '' : 'none';
@@ -2512,7 +2532,7 @@
   }
 
   // ---------------------------------------------------------------- diagnostics
-  $('diag').onclick = async () => {
+  async function buildReport() {
     const st = await storageInfo();
     const session = await getMeta('session').catch(() => null);
     const support = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm'].map(t => {
@@ -2544,8 +2564,22 @@
       '--- Action log (JSON) ---',
       JSON.stringify(actions)
     ].join('\n');
+    return report;
+  }
+  $('diag').onclick = async () => {
+    const report = await buildReport();
     const file = new File([report], `seeing-roundnet-diagnostics-${Date.now()}.txt`, { type: 'text/plain' });
     shareFile(file, URL.createObjectURL(file));
+  };
+  // Some iPhones send the report file empty: copying it as text always works (paste it in a message or an email).
+  $('diagCopy').onclick = async () => {
+    try {
+      if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'text/plain': buildReport().then(r => new Blob([r], { type: 'text/plain' })) })]);
+      } else await navigator.clipboard.writeText(await buildReport());
+      log('Report copied');
+      hint('Report copied: paste it in WhatsApp or an email.', 3500);
+    } catch (e) { log('Copy failed: ' + errMsg(e), 'w'); hint('Could not copy the report: use Send a report instead.', 3500); }
   };
 
   // ---------------------------------------------------------------- new version check
