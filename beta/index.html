@@ -1,0 +1,2647 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Seeing Roundnet">
+<meta name="theme-color" content="#051117">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+<title>Seeing Roundnet</title>
+<style>
+  :root { --bg:#051117; --panel:#0B212D; --panel2:#071820; --line:#225570; --fg:#E3E3E3; --muted:#8FA6B2; --soft:#A9BCC6;
+          --accent:#1484C4; --azure:#225570; --rec:#FF3B30; --ok:#30d158; --warn:#ffd60a; --side:124px; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { touch-action:manipulation; margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
+               font-family:Montserrat, -apple-system, system-ui, sans-serif; -webkit-user-select:none; user-select:none; }
+  [hidden] { display:none !important; }
+  button, select { font-family:inherit; color:var(--fg); background:var(--panel); border:0; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.35; cursor:default; }
+  svg { display:block; }
+  .ib { width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; padding:0; flex:0 0 auto; }
+  .ghost { background:transparent; }
+  .fb { width:44px; height:44px; border-radius:22px; background:rgba(5,17,23,.74); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+        display:inline-flex; align-items:center; justify-content:center; padding:0; flex:0 0 auto; font-size:12px; font-weight:700; }
+  .on { background:var(--accent) !important; color:#fff !important; }
+
+  /* ---------- home */
+  #home { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:24px;
+          padding:calc(40px + env(safe-area-inset-top)) 28px calc(24px + env(safe-area-inset-bottom));
+          background:#031118; overflow:auto; }
+  #logo { width:min(380px, 92vw, 46vh); aspect-ratio:1; object-fit:cover; flex:0 0 auto; margin-top:-12px;
+          -webkit-mask-image:radial-gradient(circle at center, #000 48%, transparent 71%); mask-image:radial-gradient(circle at center, #000 48%, transparent 71%); }
+  .homeMain { width:100%; max-width:380px; display:flex; flex-direction:column; gap:32px; }
+  .tagline { text-align:center; }
+  .tagline .h { margin:0 0 8px; font-size:22px; font-weight:700; letter-spacing:.01em; }
+  .tagline .s { margin:0 auto; max-width:290px; font-size:14px; line-height:1.5; color:var(--soft); font-weight:500; }
+  .actions { display:flex; flex-direction:column; gap:12px; }
+  .primary { height:56px; border-radius:14px; background:var(--accent); color:#fff; font-size:17px; font-weight:700;
+             display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; }
+  .secondary { height:52px; border:1px solid var(--azure); border-radius:14px; background:rgba(11,33,45,.88); font-size:15px;
+               display:flex; align-items:center; justify-content:center; gap:10px; }
+  .foot.tip { color:var(--soft); line-height:1.4; max-width:340px; margin:0 auto; }
+  #picking { position:fixed; inset:0; z-index:60; background:rgba(5,17,23,.92); display:flex; align-items:center; justify-content:center; padding:24px; text-align:center; }
+  #picking[hidden] { display:none; }
+  #picking > div { max-width:340px; }
+  #picking .h { font-weight:700; font-size:18px; margin:0 0 8px; }
+  #picking p { color:var(--soft); font-size:14px; line-height:1.45; }
+  #picking button { padding:0 22px; margin-top:8px; }
+  .foot { margin:4px 0 0; text-align:center; font-size:12px; color:var(--muted); font-weight:500; }
+  .link { background:none; padding:0; font-size:12px; color:var(--accent); font-weight:600; text-decoration:underline; }
+  @media (orientation:landscape) and (max-height:560px) {
+    #home { flex-direction:row; justify-content:center; gap:40px; padding:calc(16px + env(safe-area-inset-top)) calc(28px + env(safe-area-inset-right)) 16px calc(28px + env(safe-area-inset-left)); }
+    #logo { width:min(320px, 80vh); margin-top:0; }
+    .homeMain { gap:20px; }
+  }
+
+  /* ---------- analysis screen */
+  #app { position:fixed; inset:0; display:grid; grid-template-columns:1fr; grid-template-rows:auto 1fr auto; grid-template-areas:"head" "stage" "bar";
+         padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  header { grid-area:head; height:48px; display:flex; align-items:center; justify-content:space-between; padding:0 4px; }
+  .brand { display:flex; align-items:baseline; gap:6px; }
+  .brand b { font-size:18px; letter-spacing:.06em; }
+  .brand span { font-size:10px; font-weight:600; letter-spacing:.22em; color:var(--soft); }
+  .hbtns { display:flex; gap:2px; }
+  #stageWrap { grid-area:stage; position:relative; min-height:0; min-width:0; display:flex; align-items:center; justify-content:center; background:#000; overflow:hidden; }
+  #stage { position:relative; background:#000; }
+  #stage video, #stage canvas { position:absolute; inset:0; width:100%; height:100%; }
+  #stage video { object-fit:fill; }
+  #view, #stageWrap { touch-action:none; }
+  #tools { touch-action:none; }
+  #textBox { position:absolute; z-index:3; width:min(240px, 80%); font:700 16px Montserrat, sans-serif; padding:7px 10px; border-radius:8px;
+             border:2px solid var(--accent); background:rgba(5,17,23,.92); color:#fff; outline:none; -webkit-user-select:text; user-select:text; }
+  #recBadge { position:absolute; top:10px; left:50%; transform:translateX(-50%); background:var(--rec); color:#fff; font-size:13px; font-weight:700;
+              padding:4px 10px; border-radius:8px; display:none; pointer-events:none; font-variant-numeric:tabular-nums; z-index:4; white-space:nowrap; }
+  #recBadge.paused { background:var(--warn); color:#111; }
+  #stall { position:absolute; left:64px; right:64px; top:48px; display:none; background:rgba(58,29,0,.95); color:var(--warn); border-radius:10px; padding:8px 10px; font-size:14px; z-index:4; }
+  #hint { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); max-width:calc(100% - 24px); background:rgba(5,17,23,.88); border:1px solid var(--line);
+          padding:8px 12px; border-radius:10px; font-size:13px; font-weight:600; z-index:4; pointer-events:none; text-align:center; }
+
+  .rail { position:absolute; z-index:5; display:flex; flex-direction:column; gap:10px; top:calc(env(safe-area-inset-top) + 58px); }
+  #tools { right:calc(env(safe-area-inset-right) + 10px); align-items:flex-end; }
+  #leftRail { left:calc(env(safe-area-inset-left) + 10px); align-items:flex-start; }
+  .grp { display:flex; flex-direction:row-reverse; align-items:center; gap:2px; }
+  .opts { display:none; gap:2px; padding:3px; border-radius:24px; background:rgba(5,17,23,.9); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+  .grp.open .opts { display:flex; }
+  .opts .fb { width:40px; height:40px; background:transparent; }
+  .tactions { display:flex; flex-direction:column; gap:10px; }
+  .sw { display:block; width:22px; height:22px; border-radius:50%; border:2px solid rgba(255,255,255,.85); }
+  .dot { display:block; border-radius:50%; background:currentColor; }
+  #app.bare #tools { display:none; }
+  body.lefty #tools { right:auto; left:calc(env(safe-area-inset-left) + 10px); align-items:flex-start; }
+  body.lefty .grp { flex-direction:row; }
+  body.lefty #leftRail { left:auto; right:calc(env(safe-area-inset-right) + 10px); align-items:flex-end; }
+  /* tools in a bottom corner (dragged there, or chosen in Settings) */
+  body.tbottom #tools { top:auto; bottom:calc(var(--barH, 110px) + env(safe-area-inset-bottom) + 12px); }
+  body.tbottom.lefty #leftRail { left:calc(env(safe-area-inset-left) + 10px); right:auto; align-items:flex-start; }
+  #tools.dragging { transition:none; opacity:.85; z-index:30; }
+  #tools.dragging .opts { display:none !important; }
+
+  #bar { grid-area:bar; padding:6px 12px 2px; display:flex; flex-direction:column; gap:6px; }
+  @media (orientation: portrait) { #app { padding-bottom:max(6px, calc(env(safe-area-inset-bottom) - 14px)); } }
+  .srow { display:flex; align-items:center; gap:10px; }
+  #strip { position:relative; height:58px; border-radius:10px; overflow:hidden; background:var(--panel2); touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none; }
+  #strip:active { cursor:grabbing; }
+  #stripC { width:100%; height:100%; display:block; }
+  .srow span { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:62px; }
+  #tDur { text-align:right; }
+  #scrubWrap { flex:1; min-width:60px; position:relative; display:flex; align-items:center; }
+  #scrub { flex:1; width:100%; accent-color:var(--accent); height:28px; margin:0; }
+  #bmMarks { position:absolute; left:8px; right:8px; top:0; bottom:0; pointer-events:none; }
+  #bmMarks i { position:absolute; top:2px; width:3px; height:8px; border-radius:2px; transform:translateX(-1px); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
+  .chip { min-height:34px !important; padding:4px 12px !important; margin:0 !important; border-radius:17px !important; border:1px solid var(--azure); background:var(--bg) !important; font-size:13px !important; display:inline-flex; align-items:center; gap:6px; }
+  .chip i { width:11px; height:11px; border-radius:50%; display:inline-block; flex:none; }
+  .chip.sel { background:var(--azure) !important; border-color:var(--accent); color:#fff; }
+  .newtag { display:flex; gap:6px; margin-bottom:10px; }
+  .newtag input, #bmNote { flex:1; min-height:38px; border-radius:10px; border:1px solid var(--azure); background:var(--bg); color:var(--fg); font:500 14px Montserrat, sans-serif; padding:6px 10px; }
+  #bmNote { width:100%; min-height:64px; resize:vertical; margin-bottom:10px; box-sizing:border-box; }
+  .bmItem { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid #12303f; }
+  .bmItem .bmT { min-width:84px; font-variant-numeric:tabular-nums; }
+  .bmItem .bmBody { flex:1; font-size:13px; }
+  .bmItem .bmBody p { margin:4px 0 0; color:var(--soft); font-size:13px; }
+  .bmItem .chips { margin:0; }
+  .bmItem .chip { min-height:24px !important; padding:2px 9px !important; font-size:12px !important; }
+  #bmEmpty { color:var(--muted); font-size:13px; }
+  .bmAuto { color:var(--muted); font-size:12px; margin:-4px 0 10px; }
+  #bmQuick .chip { min-height:44px; padding:6px 14px; font-size:15px; }
+  .crow { display:flex; align-items:center; gap:6px; }
+  .crow .ib { width:40px; }
+  #speed { min-width:58px !important; padding:0 8px !important; }
+  .spacer { flex:1; }
+  #play { background:var(--fg); color:var(--bg); }
+  #speedWrap { position:relative; }
+  #speed { height:44px; padding:0 12px; color:#4FB3E8; font-weight:700; min-width:64px; }
+  #speedMenu { position:absolute; bottom:52px; left:0; display:none; flex-direction:column; gap:2px; padding:4px; background:var(--panel);
+               border:1px solid var(--line); border-radius:12px; z-index:8; }
+  #speedMenu.open { display:flex; }
+  #speedMenu button { height:40px; min-width:76px; background:transparent; font-size:14px; }
+  #rec { width:52px; height:52px; border-radius:50%; border:3px solid var(--fg); background:transparent; display:flex; align-items:center; justify-content:center; padding:0; }
+  #rec i { display:block; width:26px; height:26px; border-radius:50%; background:var(--rec); transition:all .15s; }
+  #rec.recording i { width:18px; height:18px; border-radius:4px; }
+  #rec.confirm { border-color:var(--rec); background:rgba(255,59,48,.18); }
+  #recPause { border:2px solid var(--rec) !important; background:transparent !important; color:var(--rec) !important; border-radius:50% !important; width:44px !important; height:44px; }
+  #recPause.paused { background:var(--rec) !important; color:#fff !important; animation:pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity:.55; } }
+
+  /* Landscape: same compact tools as in portrait (one button per setting, options on tap),
+     laid out in a row at the top right so the video keeps almost the whole screen. */
+  @media (orientation:landscape) and (max-height:560px) {
+    /* no header row in landscape: its buttons float over the video, top left (top right if the tools are on the left) */
+    #app { padding-left:0; padding-right:0; grid-template-rows:1fr auto; grid-template-areas:"stage" "bar"; }
+    header { position:absolute; z-index:6; top:calc(env(safe-area-inset-top) + 8px); left:calc(env(safe-area-inset-left) + 10px); height:auto; padding:0; gap:8px; justify-content:flex-start; }
+    header .brand { display:none; }
+    header .ib, .hbtns .ib { width:40px; height:40px; border-radius:20px; background:rgba(5,17,23,.74); }
+    .hbtns { gap:8px; }
+    body.lefty header { left:auto; right:calc(env(safe-area-inset-right) + 10px); flex-direction:row-reverse; }
+    body.lefty .hbtns { flex-direction:row-reverse; }
+    .rail { top:calc(env(safe-area-inset-top) + 8px); gap:8px; }
+    #leftRail { left:calc(env(safe-area-inset-left) + 154px) !important; right:auto !important; }
+    body.lefty #leftRail { left:auto !important; right:calc(env(safe-area-inset-right) + 154px) !important; }
+    #tools { flex-direction:row; align-items:flex-start; right:calc(env(safe-area-inset-right) + 10px); }
+    body.lefty #tools { right:auto; left:calc(env(safe-area-inset-left) + 10px); }
+    #tools .grp, body.lefty #tools .grp { flex-direction:column; position:relative; }
+    #tools .opts { position:absolute; top:50px; right:0; }
+    body.lefty #tools .opts { right:auto; left:0; }
+    body.tbottom #tools .opts { top:auto; bottom:50px; }
+    .tactions { flex-direction:row; gap:8px; }
+    #leftRail { flex-direction:row; }
+    #bar { flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:4px calc(env(safe-area-inset-right) + 12px) 6px calc(env(safe-area-inset-left) + 12px); }
+    #strip { order:0; flex:0 0 100%; height:40px; border-radius:8px; }
+    .crow { display:contents; }
+    .crow > * { order:1; }
+    .srow { flex:1; order:2; min-width:180px; }
+    .crow .spacer { display:none; }
+    #recPause, #rec { order:3; }
+    #stall { left:12px; right:12px; top:56px; }
+    #recBadge { top:12px; }
+    #speedMenu { bottom:auto; top:auto; bottom:52px; }
+  }
+
+  /* ---------- sheet (results, settings, log) */
+  #updateBar { position:fixed; left:50%; transform:translateX(-50%); top:calc(8px + env(safe-area-inset-top)); z-index:20; display:none; align-items:center; gap:10px;
+               background:var(--accent); color:#fff; border-radius:12px; padding:8px 10px 8px 14px; font-size:14px; font-weight:700; box-shadow:0 6px 20px rgba(0,0,0,.5); white-space:nowrap; }
+  #updateBar button { background:var(--bg); color:var(--fg); min-height:32px; padding:4px 12px; font-size:14px; }
+  #sheet { position:fixed; left:0; right:0; bottom:0; max-height:78dvh; overflow-y:auto; background:var(--panel); border-top:1px solid var(--line); border-radius:16px 16px 0 0;
+           box-shadow:0 -8px 30px rgba(0,0,0,.6); padding:10px 16px calc(16px + env(safe-area-inset-bottom)); display:none; z-index:10; -webkit-user-select:text; user-select:text; }
+  @media (min-width:700px) { #sheet { left:50%; transform:translateX(-50%); width:620px; } }
+  #sheet .close { position:sticky; top:0; float:right; min-height:34px; padding:4px 12px; font-size:14px; z-index:1; background:var(--bg); }
+  .card { margin:6px 0 12px; display:none; }
+  .card p { margin:0 0 8px; font-size:14px; }
+  .card .ct { font-size:16px; font-weight:700; margin-bottom:12px; }
+  .card button { min-height:44px; padding:10px 14px; margin:0 6px 6px 0; background:var(--bg); }
+  .card button.main { background:var(--accent); color:#fff; }
+  #result video { width:100%; max-height:42dvh; border-radius:8px; background:#000; margin-bottom:8px; }
+  progress { width:100%; height:8px; margin-bottom:8px; accent-color:var(--accent); }
+  .warn { color:var(--warn); }
+  .setrow { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid #12303f; font-size:14px; font-weight:600; }
+  .setrow select { min-height:36px; padding:4px 10px; font-size:14px; background:var(--bg); }
+  .setrow input[type=checkbox] { width:22px; height:22px; accent-color:var(--accent); }
+  .setbtns { margin-top:12px; }
+  #info { font-size:11px; color:var(--muted); margin:6px 0; clear:both; }
+  #debug { max-height:40dvh; overflow:auto; background:#000; color:#7CFC9A; font:11px/1.35 ui-monospace, Menlo, monospace; padding:6px 8px; white-space:pre-wrap; display:none; border:1px solid #333; border-radius:8px; }
+  #debug .e { color:#ff6b6b; } #debug .w { color:#ffd60a; }
+</style>
+</head>
+<body>
+<input id="file" type="file" accept="video/*" hidden>
+<video id="cam" playsinline muted autoplay style="position:fixed;left:0;bottom:0;width:160px;height:120px;z-index:-1;pointer-events:none"></video>
+
+<div id="home">
+  <img id="logo" src="logo.jpg" alt="Seeing Roundnet by Beeks">
+  <div class="homeMain">
+    <div class="tagline">
+      <p class="h">Helping you see the game.</p>
+      <p class="s">Slow it down, draw on it, explain it, and export your analysis in seconds.</p>
+    </div>
+    <div class="actions">
+      <label class="primary" for="file" id="loadBtn"><span data-icon="plus" data-size="20"></span>Load a video</label>
+      <button class="secondary" id="resumeBtn" hidden><span data-icon="playFill" data-size="18"></span>Back to current video</button>
+      <button class="secondary" id="lastBtn" hidden><span data-icon="film" data-size="18"></span>Open last exported video</button>
+      <p class="foot tip">Long video in iCloud? In Photos, Share › Save to Files first, then pick it here with Choose File: it loads much faster.</p>
+      <p class="foot"><span id="verHome"></span> · Nothing is uploaded · <button class="link" id="settingsHome">Settings</button></p>
+    </div>
+  </div>
+</div>
+
+<div id="picking" hidden><div><p class="h">Getting your video…</p><p>Long videos stored in iCloud can take a few minutes. Keep Seeing Roundnet open until it appears.</p><button class="secondary" id="pickingClose">Hide</button></div></div>
+
+<div id="app" hidden>
+  <header>
+    <button class="ib ghost" id="homeBtn" aria-label="Home" data-icon="back"></button>
+    <div class="brand"><img src="logo-mark.png" alt="Seeing Roundnet" style="height:36px;width:auto;display:block"></div>
+    <div class="hbtns">
+      <button class="ib ghost" id="exportBtn" aria-label="Last exported video" data-icon="share" data-size="20" disabled></button>
+      <button class="ib ghost" id="settingsBtn" aria-label="Settings" data-icon="more" data-size="20"></button>
+    </div>
+  </header>
+
+  <div id="stageWrap">
+    <div id="stage">
+      <video id="video" playsinline muted preload="auto"></video>
+      <canvas id="view"></canvas>
+      <input id="textBox" type="text" enterkeyhint="done" autocomplete="off" placeholder="Type a note" hidden>
+    </div>
+    <div id="recBadge">● REC 00:00</div>
+    <div id="stall"></div>
+    <div id="hint" hidden></div>
+  </div>
+
+  <div id="leftRail" class="rail">
+    <button class="fb" id="zoomReset" aria-label="Reset zoom" hidden>1×</button>
+    <button class="fb" id="hideBtn" aria-label="Hide drawing tools" data-icon="eye" data-size="20"></button>
+    <button class="fb" id="camBtn" aria-label="Instructor cam (your face in a corner of the video)" data-icon="cam" data-size="20"></button>
+  </div>
+
+  <div id="tools" class="rail">
+    <div class="grp" id="gTool">
+      <button class="fb cur on" id="toolCur" aria-label="Drawing tool (tap to change)"></button>
+      <div class="opts">
+        <button class="fb tool" data-t="pen" aria-label="Scribble" data-icon="pen" data-size="20"></button>
+        <button class="fb tool" data-t="line" aria-label="Straight line" data-icon="line" data-size="20"></button>
+        <button class="fb tool" data-t="arrow" aria-label="Arrow" data-icon="arrow" data-size="20"></button>
+        <button class="fb tool" data-t="circle" aria-label="Circle" data-icon="circle" data-size="20"></button>
+        <button class="fb tool" data-t="angle" aria-label="Angle" data-icon="angle" data-size="20"></button>
+        <button class="fb tool" data-t="text" aria-label="Text" data-icon="text" data-size="20"></button>
+        <button class="fb tool" data-t="timer" aria-label="Timer" data-icon="timer" data-size="20"></button>
+      </div>
+    </div>
+    <div class="grp" id="gColor">
+      <button class="fb cur" id="colorCur" aria-label="Colour (tap to change)"><i class="sw"></i></button>
+      <div class="opts">
+        <button class="fb col" data-c="#FF3B30" aria-label="Red"><i class="sw" style="background:#FF3B30"></i></button>
+        <button class="fb col" data-c="#FFD60A" aria-label="Yellow"><i class="sw" style="background:#FFD60A"></i></button>
+        <button class="fb col" data-c="#4FB3E8" aria-label="Blue"><i class="sw" style="background:#4FB3E8"></i></button>
+        <button class="fb col" data-c="#FFFFFF" aria-label="White"><i class="sw" style="background:#FFFFFF"></i></button>
+        <button class="fb col" data-c="#000000" aria-label="Black"><i class="sw" style="background:#000000"></i></button>
+      </div>
+    </div>
+    <div class="grp" id="gSize">
+      <button class="fb cur" id="sizeCur" aria-label="Line thickness (tap to change)"><i class="dot"></i></button>
+      <div class="opts">
+        <button class="fb siz" data-s="1" aria-label="Medium"><i class="dot" style="width:8px;height:8px"></i></button>
+        <button class="fb siz" data-s="1.7" aria-label="Thick"><i class="dot" style="width:12px;height:12px"></i></button>
+        <button class="fb siz" data-s="2.6" aria-label="Extra thick"><i class="dot" style="width:17px;height:17px"></i></button>
+      </div>
+    </div>
+    <div class="tactions">
+      <button class="fb" id="undo" aria-label="Undo" data-icon="undo" data-size="20"></button>
+      <button class="fb" id="clear" aria-label="Clear all drawings" data-icon="trash" data-size="20"></button>
+    </div>
+  </div>
+
+  <div id="bar">
+    <div class="srow">
+      <span id="tCur">00:00.000</span>
+      <div id="scrubWrap"><input id="scrub" type="range" min="0" max="0" step="0.001" value="0" aria-label="Position in the video"><div id="bmMarks"></div></div>
+      <span id="tDur">00:00</span>
+    </div>
+    <div id="strip" aria-label="Timeline: drag left or right to move through the video"><canvas id="stripC"></canvas></div>
+    <div class="crow">
+      <button class="ib" id="back" aria-label="Previous frame (hold to keep going)" data-icon="prev" data-size="20"></button>
+      <button class="ib" id="play" aria-label="Play or pause" data-icon="playFill" data-size="20"></button>
+      <button class="ib" id="fwd" aria-label="Next frame (hold to keep going)" data-icon="next" data-size="20"></button>
+      <div id="speedWrap">
+        <button id="speed" aria-label="Playback speed">1×</button>
+        <div id="speedMenu"></div>
+      </div>
+      <button class="ib" id="bmBtn" aria-label="Bookmarks" data-icon="bookmark" data-size="20"></button>
+      <span class="spacer"></span>
+      <button class="ib" id="recPause" aria-label="Pause recording" data-icon="pauseFill" data-size="18" hidden></button>
+      <button id="rec" aria-label="Start recording"><i></i></button>
+    </div>
+  </div>
+</div>
+
+<div id="updateBar"><span id="updateText">New version available</span><button id="updateReload">Reload</button></div>
+
+<div id="sheet">
+  <button class="close" id="sheetClose">Close</button>
+  <div id="banner" class="card">
+    <p id="bannerText"></p>
+    <button id="recover" class="main">Recover it</button>
+    <button id="dismiss">Discard</button>
+  </div>
+  <div id="result" class="card">
+    <p id="resultText"></p>
+    <div id="qualityWarn" hidden>
+      <p class="warn">This phone struggled to record in 1080p (the video had to be reloaded or the recording paused for a few seconds). For long analyses on this phone, 720p is safer.</p>
+      <button id="to720" class="main">Switch to 720p</button>
+    </div>
+    <progress id="progress" max="1" value="0"></progress>
+    <video id="preview" playsinline controls></video>
+    <button id="save" class="main">Share video</button>
+    <button id="saveFile">Save to Files</button>
+    <p class="hint" style="font-size:12px;color:var(--muted);margin:4px 0 8px">Very long videos: use “Save to Files”, then in the Files app open the video and choose Share → Save Video to put it in Photos.</p>
+    <button id="saveRaw" style="display:none">Share raw file</button>
+    <button id="discard">Delete recording</button>
+  </div>
+  <div id="bmCard" class="card">
+    <p class="ct">Bookmarks</p>
+    <div id="bmEditBox" hidden>
+      <p id="bmTime" style="font-weight:700"></p>
+      <div class="chips" id="bmTags"></div>
+      <div class="newtag"><input id="bmNewTag" placeholder="New tag" maxlength="24" autocomplete="off"><button id="bmNewTagBtn">Add tag</button></div>
+      <textarea id="bmNote" placeholder="Note (optional)"></textarea>
+      <p class="bmAuto">Changes are saved as you go.</p>
+      <button class="main" id="bmSave">Done</button><button id="bmDelete">Delete</button>
+    </div>
+    <div id="bmListBox">
+      <p id="bmQuickT" style="font-weight:700;margin:0 0 6px"></p>
+      <div class="chips" id="bmQuick"></div>
+      <button id="bmAddHere">Several tags or a note…</button>
+      <p class="ct" style="margin-top:14px">Saved bookmarks</p>
+      <div class="chips" id="bmFilter"></div>
+      <div id="bmItems"></div>
+    </div>
+  </div>
+  <div id="settings" class="card">
+    <p class="ct">Settings</p>
+    <label class="setrow">Recording quality
+      <select id="quality" aria-label="Recording quality"><option value="1920">1080p (recommended)</option><option value="1280">720p (lighter)</option></select></label>
+    <label class="setrow">Drawing tools position <small style="font-weight:500;color:var(--muted)">(or drag them)</small>
+      <select id="toolPos" aria-label="Drawing tools position"><option value="tr">Top right</option><option value="tl">Top left</option><option value="br">Bottom right</option><option value="bl">Bottom left</option></select></label>
+    <label class="setrow"><span>Include the match sound in recordings<br><small style="font-weight:500;color:var(--muted)">Added under your voice, at a lower volume. Choose before recording.</small></span> <input type="checkbox" id="matchAudio"></label>
+    <div class="setbtns"><button id="diag">Send a report</button><button id="diagCopy">Copy report</button><button id="logBtn">Show log</button></div>
+    <div id="info"></div>
+    <div id="debug"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const VERSION = 'v1.0 build 25';
+  const $ = id => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const DEBUG = params.has('debug');                // log panel open from the start
+  const COMPAT = !params.has('nocompat');           // behave like iOS 17 (no audio WebCodecs) — on by default
+  const RENDER_FPS = Math.min(60, Math.max(15, +params.get('fps') || 30));
+  let maxSide = +params.get('max') || (() => { try { return +localStorage.getItem('sr-quality-v1'); } catch (e) { return 0; } })() || 1920;   // 1080p by default (Scott, 05/11)
+  maxSide = Math.min(3840, Math.max(640, maxSide));
+  const videoBps = () => Math.max(0.5, +params.get('mbps') || (maxSide <= 1280 ? 3 : 6)) * 1e6;
+  const MB = 1048576;
+
+  // ---------------------------------------------------------------- icons
+  const ICONS = {
+    pen: '<path d="M3 17c3-6 6 2 9-4s5 3 9-3"/>',
+    line: '<path d="M4 20L20 4"/>',
+    arrow: '<path d="M5 19L19 5M9 5h10v10"/>',
+    circle: '<circle cx="12" cy="12" r="8"/>',
+    angle: '<path d="M4 20L18 5M4 20h16M11 20a8 8 0 0 0-2.3-5.6"/>',
+    text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+    timer: '<circle cx="12" cy="14" r="7"/><path d="M12 14V10M10 3h4"/>',
+    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+    back: '<path d="M15 18l-6-6 6-6"/>',
+    more: '<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>',
+    share: '<path d="M12 15V3M7 8l5-5 5 5M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/>',
+    eye: '<path d="M2 12c1.5-3.5 5.5-7 10-7s8.5 3.5 10 7c-1.5 3.5-5.5 7-10 7s-8.5-3.5-10-7z"/><circle cx="12" cy="12" r="3"/>',
+    eyeOff: '<path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.2M6.6 6.6A13 13 0 0 0 2 12c1 2.5 5 7 10 7a9.8 9.8 0 0 0 4.4-1"/>',
+    prev: '<path d="M6 5v14M18 6l-8 6 8 6z"/>',
+    next: '<path d="M18 5v14M6 6l8 6-8 6z"/>',
+    playFill: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
+    pauseFill: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
+    recDot: '<circle cx="12" cy="12" r="7" fill="currentColor" stroke="none"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+    cam: '<rect x="2" y="7" width="13" height="10" rx="2"/><path d="M15 10.5l6-3.5v10l-6-3.5"/>',
+    film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>'
+  };
+  const svg = (k, s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
+  const setIcon = (el, k, s) => { el.innerHTML = svg(k, s || +el.dataset.size || 22); };
+  document.querySelectorAll('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', svg(el.dataset.icon, +el.dataset.size || 22)));
+
+  $('verHome').textContent = `Seeing Roundnet ${VERSION}`;
+
+  // ---------------------------------------------------------------- logging
+  const logLines = [];
+  const t0 = performance.now();
+  function log(msg, level = 'i') {
+    const line = `[${((performance.now() - t0) / 1000).toFixed(1).padStart(7)}s] ${level === 'e' ? 'ERROR ' : level === 'w' ? 'WARN ' : ''}${msg}`;
+    logLines.push(line);
+    if (logLines.length > 2000) logLines.splice(0, logLines.length - 2000);
+    (level === 'e' ? console.error : level === 'w' ? console.warn : console.log)(line);
+    schedulePersistLog(level !== 'i');
+    const d = document.createElement('div');
+    if (level !== 'i') d.className = level;
+    d.textContent = line;
+    $('debug').appendChild(d);
+    while ($('debug').childNodes.length > 400) $('debug').removeChild($('debug').firstChild);
+    if ($('debug').style.display === 'block') $('debug').scrollTop = $('debug').scrollHeight;
+  }
+  const showLog = on => {
+    $('debug').style.display = on ? 'block' : 'none';
+    $('logBtn').textContent = on ? 'Hide log' : 'Show log';
+    if (on) $('debug').scrollTop = $('debug').scrollHeight;
+  };
+  const openSheet = () => { $('sheet').style.display = 'block'; };
+  const closeSheet = () => { $('sheet').style.display = 'none'; };
+  $('logBtn').onclick = () => showLog($('debug').style.display !== 'block');
+  $('sheetClose').onclick = closeSheet;
+  function openSettings() {
+    $('result').style.display = 'none'; $('bmCard').style.display = 'none';
+    $('settings').style.display = 'block';
+    openSheet();
+  }
+  $('settingsBtn').onclick = openSettings;
+  $('settingsHome').onclick = openSettings;
+  if (DEBUG) { showLog(true); }
+  let persistTimer = null, prevLog = [];
+  function schedulePersistLog(now) {
+    if (persistTimer && !now) return;
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      persistTimer = null;
+      if (typeof setMeta === 'function') setMeta('log', { lines: logLines.slice(-1500), at: new Date().toISOString() }).catch(() => {});
+    }, now ? 50 : 2000);
+  }
+  window.addEventListener('error', e => log(`Uncaught: ${e.message} @${e.filename}:${e.lineno}`, 'e'));
+  window.addEventListener('unhandledrejection', e => log(`Unhandled promise: ${e.reason && (e.reason.stack || e.reason.message) || e.reason}`, 'e'));
+  const mbs = b => (b / MB).toFixed(1) + ' MB';
+  const errMsg = e => (e && (e.message || e.name)) || String(e);
+
+  if (COMPAT) {
+    // iOS 17 Safari has no audio WebCodecs: hide them so newer phones behave like Scott's.
+    for (const k of ['AudioEncoder', 'AudioDecoder', 'AudioData']) {
+      try { Object.defineProperty(window, k, { value: undefined, configurable: true, writable: true }); } catch (e) { log('compat: could not hide ' + k, 'w'); }
+    }
+    log('Compat mode: audio WebCodecs hidden');
+  }
+
+  // ---------------------------------------------------------------- preferences
+  const prefs = (() => { try { return JSON.parse(localStorage.getItem('sr-v1-prefs')) || {}; } catch (e) { return {}; } })();
+  const savePrefs = () => { try { localStorage.setItem('sr-v1-prefs', JSON.stringify(prefs)); } catch (e) {} };
+  // Drawing tools can sit in any corner of the video: top/bottom, left/right.
+  function setToolPos(pos) {
+    if (!/^(tr|tl|br|bl)$/.test(pos)) pos = 'tr';
+    document.body.classList.toggle('lefty', pos[1] === 'l');
+    document.body.classList.toggle('tbottom', pos[0] === 'b');
+    $('toolPos').value = pos;
+    prefs.toolPos = pos; prefs.lefty = pos[1] === 'l'; savePrefs();
+  }
+  $('toolPos').onchange = () => setToolPos($('toolPos').value);
+  $('matchAudio').checked = !!prefs.matchAudio;
+  $('matchAudio').onchange = () => { if (recState !== 'idle') { $('matchAudio').checked = !!prefs.matchAudio; return; } prefs.matchAudio = $('matchAudio').checked; savePrefs(); };
+  setToolPos(prefs.toolPos || (prefs.lefty ? 'tl' : 'tr'));
+
+  // ---------------------------------------------------------------- storage (IndexedDB)
+  const DB_NAME = 'seeing-roundnet-v2';
+  let dbPromise = null;
+  function openDB() {
+    if (!dbPromise) dbPromise = new Promise((res, rej) => {
+      const r = indexedDB.open(DB_NAME, 1);
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        d.createObjectStore('chunks', { keyPath: 'i' });   // raw recording, 1 record per second
+        d.createObjectStore('out', { keyPath: 'i' });      // converted MP4, 4 MB parts
+        d.createObjectStore('meta', { keyPath: 'k' });     // session state, action log
+      };
+      r.onsuccess = () => {
+        const d = r.result;
+        // Safari sometimes closes the storage connection (app in the background, memory pressure):
+        // forget it so the next access opens a fresh one. Nothing stored is lost.
+        d.onclose = () => { if (typeof log === 'function') log('Storage connection closed by the browser: reopening', 'w'); dbPromise = null; };
+        d.onversionchange = () => { try { d.close(); } catch (e) {} dbPromise = null; };
+        res(d);
+      };
+      r.onerror = () => { dbPromise = null; rej(r.error); };
+    });
+    return dbPromise;
+  }
+  function txOnce(d, store, mode, fn) {
+    return new Promise((res, rej) => {
+      const t = d.transaction(store, mode);       // throws if the connection is closing
+      const req = fn(t.objectStore(store));
+      t.oncomplete = () => res(req ? req.result : undefined);
+      t.onerror = () => rej(t.error || new Error('IndexedDB error'));
+      t.onabort = () => rej(t.error || new Error('IndexedDB transaction aborted'));
+    });
+  }
+  async function tx(store, mode, fn) {
+    for (let attempt = 0; ; attempt++) {
+      try { return await txOnce(await openDB(), store, mode, fn); }
+      catch (e) {
+        const closing = e && (e.name === 'InvalidStateError' || e.name === 'UnknownError' || /clos/i.test(e.message || ''));
+        if (!closing || attempt >= 3) throw e;
+        if (typeof log === 'function') log(`Storage connection lost (${errMsg(e)}), retrying`, 'w');
+        dbPromise = null;
+        await new Promise(r => setTimeout(r, 150 * (attempt + 1)));
+      }
+    }
+  }
+  const putRec = (s, v) => tx(s, 'readwrite', o => o.put(v));
+  const getAll = s => tx(s, 'readonly', o => o.getAll());
+  const clearStore = s => tx(s, 'readwrite', o => o.clear());
+  const getMeta = k => tx('meta', 'readonly', o => o.get(k));
+  const setMeta = (k, v) => putRec('meta', Object.assign({ k }, v));
+  const delMeta = k => tx('meta', 'readwrite', o => o.delete(k));
+
+  let blobMode = 'blob';  // store Blobs (disk-backed); fall back to ArrayBuffers if refused
+  async function putBlobRecord(store, rec) {
+    if (blobMode === 'blob') {
+      try { await putRec(store, rec); return; }
+      catch (e) { log(`IndexedDB refused a Blob (${errMsg(e)}), switching to ArrayBuffer mode`, 'w'); blobMode = 'buffer'; }
+    }
+    const copy = Object.assign({}, rec, { blob: await rec.blob.arrayBuffer() });
+    await putRec(store, copy);
+  }
+  const asBlob = (b, type) => b instanceof Blob ? b : new Blob([b], type ? { type } : undefined);
+
+  async function storageInfo() {
+    try {
+      const e = await navigator.storage.estimate();
+      return { usage: e.usage || 0, quota: e.quota || 0, text: `${mbs(e.usage || 0)} used / ${mbs(e.quota || 0)} available to the app` };
+    } catch (e) { return { usage: 0, quota: 0, text: 'storage estimate unavailable' }; }
+  }
+
+  // ---------------------------------------------------------------- canvas + state
+  const video = $('video'), view = $('view'), ctx = view.getContext('2d');
+  const frame = document.createElement('canvas'), fctx = frame.getContext('2d');   // last good video frame
+  let frameValid = false, lastFrameTime = -1, blankFrames = 0;
+  let strokes = [], current = null, pendingAngle = null, textPending = null, runningTimer = null;
+  let tool = prefs.tool || 'pen', color = prefs.color || '#FF3B30', sizeK = prefs.sizeK >= 1 ? prefs.sizeK : 1;   // the thinnest size (0.6) was removed
+  let fps = 30, fpsSamples = [];
+  let recorder = null, micStream = null, wakeLock = null;
+  let recState = 'idle';          // idle | recording | paused | finishing
+  let recStart = 0, recPausedAt = 0, recPausedTotal = 0, recTimer = null, metaTimer = null;
+  let chunkCount = 0, recBytes = 0, writeChain = Promise.resolve(), writeErrors = 0, stopRequested = false;
+  let actions = [];
+  let resultFile = null, resultUrl = null, rawBlob = null, lastStored = null;
+  let flushTimer = null, lastDataAt = 0, maxGap = 0, stallWarned = false, emptyChunks = 0, videoPlayingAtRecPause = false;
+  let sessionId = null;
+
+  const recElapsed = () => recState === 'idle' ? 0 :
+    ((recState === 'paused' ? recPausedAt : performance.now()) - recStart - recPausedTotal);
+
+  function act(type, extra) {
+    if (recState === 'idle' || recState === 'finishing') return;
+    actions.push(Object.assign({ t: Math.round(recElapsed()), type, vt: +video.currentTime.toFixed(3), rate: video.playbackRate }, extra || {}));
+  }
+
+  // ---------------------------------------------------------------- helpers
+  const fmtT = s => {
+    if (!isFinite(s) || s < 0) s = 0;
+    const m = Math.floor(s / 60), r = s - m * 60;
+    return `${String(m).padStart(2, '0')}:${r.toFixed(3).padStart(6, '0')}`;
+  };
+  const fmtRec = ms => {
+    const s = Math.floor(ms / 1000);
+    return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  };
+  function pickType() {
+    if (!window.MediaRecorder) return '';
+    const candidates = [
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4;codecs=avc1,mp4a',
+      'video/mp4',
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm'
+    ];
+    return candidates.find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || '';
+  }
+  function setInfo(extra) {
+    const size = view.width ? `${view.width}×${view.height}` : '–';
+    $('info').textContent = `${VERSION}${COMPAT ? ' · iOS 17 compat' : ''} · format: ${pickType() || 'browser default'} · output: ${size} @${RENDER_FPS}fps · source ≈${fps}fps${extra ? ' · ' + extra : ''}`;
+  }
+  const editControls = () => [...document.querySelectorAll('#bar button, #scrub, #tools button, #leftRail button')];
+  function enableEditing(on) {
+    editControls().forEach(el => { if (el.id !== 'recPause') el.disabled = !on; });
+    $('recPause').disabled = !(recState === 'recording' || recState === 'paused');
+  }
+  let hintTimer = null;
+  function hint(text, ms = 2600) {
+    clearTimeout(hintTimer);
+    if (!text) { $('hint').hidden = true; return; }
+    $('hint').textContent = text; $('hint').hidden = false;
+    hintTimer = setTimeout(() => { $('hint').hidden = true; }, ms);
+  }
+
+  // ---------------------------------------------------------------- screens
+  function showHome() {
+    if (recState !== 'idle') return;
+    video.pause();
+    closeMenus();
+    $('app').hidden = true; $('home').hidden = false;
+    $('resumeBtn').hidden = !video.src;
+    $('lastBtn').hidden = !(resultFile || lastStored);
+  }
+  function showApp() {
+    $('home').hidden = true; $('app').hidden = false;
+    setTimeout(fixStandaloneHeight, 50);
+    fitStage();
+  }
+  $('homeBtn').onclick = showHome;
+  $('resumeBtn').onclick = showApp;
+  $('lastBtn').onclick = async () => {
+    if (resultFile) { $('settings').style.display = 'none'; $('bmCard').style.display = 'none'; $('result').style.display = 'block'; openSheet(); return; }
+    if (lastStored) await lastStored();
+  };
+
+  // ---------------------------------------------------------------- load video
+  // While iOS fetches a long video from Photos / iCloud, nothing happens on screen: say so.
+  let picking = false;
+  const hidePicking = () => { picking = false; $('picking').hidden = true; };
+  $('loadBtn').addEventListener('click', () => { picking = true; setTimeout(() => { if (picking) $('picking').hidden = false; }, 1200); });
+  $('file').addEventListener('cancel', hidePicking);
+  $('pickingClose').onclick = hidePicking;
+  $('file').addEventListener('change', e => {
+    hidePicking();
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (recState !== 'idle') { alert('Stop the recording before loading another video.'); return; }
+    if (video.src) URL.revokeObjectURL(video.src);
+    videoKey = `${f.name || 'video'}|${f.size}`; currentFileSize = f.size; bigWarned = false;
+    resetStrip(f);
+    log(`Loading ${f.name || 'video'} · ${mbs(f.size)} · ${f.type || 'unknown type'}`);
+    fpsSamples = []; fps = 30; fpsMeasured = false; fileLoadId++; frameValid = false; resetZoom();
+    enableEditing(false);
+    showApp();
+    video.src = URL.createObjectURL(f);
+    video.load();
+  });
+  ['emptied', 'stalled', 'waiting', 'abort'].forEach(ev => video.addEventListener(ev, () => {
+    if (video.src) log(`Video event: ${ev} (readyState ${video.readyState}, t=${fmtT(video.currentTime)})`, ev === 'waiting' ? 'i' : 'w');
+  }));
+  video.addEventListener('error', () => log(`Video element error: ${video.error && video.error.message || video.error && video.error.code}`, 'e'));
+
+  function applySize() {
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return null;
+    const s = Math.min(1, maxSide / Math.max(w, h));
+    const ow = Math.round(w * s / 2) * 2, oh = Math.round(h * s / 2) * 2;   // even sizes for H.264
+    if (view.width === ow && view.height === oh && frame.width === Math.round(ow / 2)) { fitStage(); return { w, h, ow, oh }; }
+    const oldW = view.width || 0;
+    view.width = ow;
+    view.height = oh;
+    frame.width = Math.round(ow / 2); frame.height = Math.round(oh / 2);   // spare frame at half size: 4× less memory
+    if (oldW && oldW !== ow) {                    // keep drawings in place when the quality changes
+      const k = ow / oldW;
+      strokes.forEach(st => { st.w = Math.max(2, st.w * k); if (st.fs) st.fs *= k; st.pts = st.pts.map(p => [p[0] * k, p[1] * k]); });
+    }
+    redrawInk(); frameValid = false; resetZoom();
+    fitStage();
+    return { w, h, ow, oh };
+  }
+  // The video area takes all the room left by the bars, keeping the video's proportions.
+  function fitStage() {
+    const wrap = $('stageWrap'), st = $('stage');
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    if (!W || !H) return;
+    const ar = view.width && view.height ? view.width / view.height : 16 / 9;
+    let w = W, h = W / ar;
+    if (h > H) { h = H; w = H * ar; }
+    st.style.width = Math.floor(w) + 'px'; st.style.height = Math.floor(h) + 'px';
+  }
+  if (window.ResizeObserver) new ResizeObserver(fitStage).observe($('stageWrap'));
+  window.addEventListener('resize', fitStage);
+  // Turning the phone (portrait <-> landscape) puts the video back to normal size.
+  let wasLandscape = innerWidth > innerHeight;
+  const onTurn = () => {
+    const land = innerWidth > innerHeight;
+    if (land === wasLandscape) return;
+    wasLandscape = land;
+    if (typeof resetZoom === 'function' && Z.s > 1.01) { resetZoom(); act('zoom', { s: 1, reason: 'rotate' }); }
+    if (typeof closeMenus === 'function') closeMenus();
+    setTimeout(fitStage, 50); setTimeout(fitStage, 400);   // iOS reports the new size a little late
+  };
+  window.addEventListener('resize', onTurn);
+  window.addEventListener('orientationchange', () => setTimeout(onTurn, 100));
+  $('quality').value = String(maxSide <= 1280 ? 1280 : 1920);
+  $('to720').onclick = () => {
+    $('quality').value = '1280'; $('quality').onchange();
+    $('qualityWarn').hidden = true; hint('720p selected for the next recordings', 2500);
+  };
+  $('quality').onchange = () => {
+    if (recState !== 'idle') { $('quality').value = String(maxSide <= 1280 ? 1280 : 1920); return; }
+    maxSide = +$('quality').value;
+    try { localStorage.setItem('sr-quality-v1', String(maxSide)); } catch (e) {}
+    const r = applySize();
+    log(`Quality set to ${maxSide <= 1280 ? '720p' : '1080p'}${r ? ` → output ${r.ow}×${r.oh}` : ''}`);
+    setInfo();
+  };
+
+  let currentFileSize = 0, bigWarned = false, recTrouble = 0;
+  let fileLoadId = 0, setUpFor = -1, lastGoodTime = 0, wasPlaying = false, reloads = 0;
+  video.addEventListener('loadedmetadata', () => {
+    if (!video.videoWidth || !video.videoHeight) { log('Video has no picture size', 'e'); return; }
+    if (setUpFor === fileLoadId) {
+      // Same file, reloaded by Safari (it unloads big videos under memory pressure).
+      // Keep everything as it was: position, drawings, output size, recording.
+      reloads++;
+      if (recState !== 'idle') recTrouble++;
+      log(`Safari reloaded the video (#${reloads}) → back to ${fmtT(lastGoodTime)}${wasPlaying ? ', resuming playback' : ''}`, 'w');
+      video.currentTime = lastGoodTime;
+      if (wasPlaying) video.play().catch(e => log('Could not resume playback: ' + errMsg(e), 'w'));
+      if (recState === 'recording' && segRestarts < 30) {
+        // After a reload the iPhone recorder stops delivering data: start a fresh one straight away.
+        setTimeout(() => { if (recState === 'recording') { log('Fresh recorder after the reload'); restartSegment(); } }, 800);
+      }
+      return;
+    }
+    setUpFor = fileLoadId; reloads = 0; lastGoodTime = 0; wasPlaying = false;
+    strokes = []; pendingAngle = null; current = null;
+    const { w, h, ow, oh } = applySize();
+    $('scrub').max = video.duration;
+    loadBookmarks();
+    strokes = []; redrawInk();
+    video.currentTime = 0.001;   // makes iOS decode the first frame
+    enableEditing(true);
+    log(`Video ready: ${w}×${h} (${w >= h ? 'landscape' : 'portrait'}), ${video.duration.toFixed(1)} s → output ${ow}×${oh}`);
+    if (!bigWarned && maxSide > 1280 && /iPhone|iPad|Android/.test(navigator.userAgent) && (currentFileSize > 300 * MB || Math.max(w, h) > 1920)) {
+      bigWarned = true;
+      hint('Big video: if a long recording stutters, switch to 720p in Settings (•••)', 6000);
+    }
+    setInfo();
+  });
+
+  // estimate the source frame rate (for frame-by-frame steps)
+  // Frames can be skipped on screen but never invented, so the real frame interval is the
+  // smallest one we see reliably. We take the median of 30 consecutive clean samples and
+  // only ever move the estimate up (except for the very first measurement of a file).
+  let fpsMeasured = false;
+  function trackFrames() {
+    if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) return;
+    let last = null, lastFrames = 0;
+    const reset = () => { last = null; fpsSamples = []; };
+    ['seeking', 'ratechange', 'pause', 'play', 'emptied'].forEach(ev => video.addEventListener(ev, reset));
+    const cb = (now, meta) => {
+      if (last !== null && !video.paused && meta.presentedFrames - lastFrames === 1) {
+        const d = meta.mediaTime - last;
+        if (d > 0.003 && d < 0.2) {
+          fpsSamples.push(d);
+          if (fpsSamples.length >= 30) {
+            const sorted = fpsSamples.slice().sort((a, b) => a - b);
+            const est = 1 / sorted[Math.floor(sorted.length / 2)];
+            const snapped = [24, 25, 30, 48, 50, 60, 120, 240].reduce((a, b) => Math.abs(b - est) < Math.abs(a - est) ? b : a, 30);
+            if (!fpsMeasured || snapped > fps) {
+              if (snapped !== fps) log(`Source frame rate ≈ ${snapped} fps`);
+              fps = snapped; fpsMeasured = true; setInfo();
+            }
+            fpsSamples = [];
+          }
+        }
+      }
+      last = meta.mediaTime; lastFrames = meta.presentedFrames;
+      dirty = true;                                   // a new video frame is on screen: repaint
+      video.requestVideoFrameCallback(cb);
+    };
+    video.requestVideoFrameCallback(cb);
+  }
+  trackFrames();
+
+  // ---------------------------------------------------------------- render loop
+  // Zoom: Z maps the base picture (video + drawings) onto the canvas. Drawings live in base
+  // coordinates, so they stay stuck to the video when zooming. What you see is what is recorded.
+  const Z = { s: 1, x: 0, y: 0 };
+  function clampZoom() {
+    Z.s = Math.min(6, Math.max(1, Z.s));
+    Z.x = Math.min(0, Math.max(view.width - Z.s * view.width, Z.x));
+    Z.y = Math.min(0, Math.max(view.height - Z.s * view.height, Z.y));
+    $('zoomReset').hidden = !(Z.s > 1.01);
+    $('zoomReset').textContent = `${Z.s.toFixed(1)}×`;
+    dirty = true;
+  }
+  function resetZoom() { Z.s = 1; Z.x = 0; Z.y = 0; clampZoom(); }
+  $('zoomReset').onclick = () => { resetZoom(); act('zoom', { s: 1 }); };
+
+  let lastDraw = 0, lastUi = 0, dirty = true, cacheAge = 0;
+  const frameInterval = 1000 / RENDER_FPS;
+  function render() {
+    const W = view.width, H = view.height;
+    ctx.setTransform(Z.s, 0, 0, Z.s, Z.x, Z.y);
+    if (video.readyState >= 2) {
+      // Draw the video straight onto the canvas (one copy only). Keep a spare copy of the
+      // picture now and then, to show if Safari briefly has no frame ready (no black flashes).
+      ctx.drawImage(video, 0, 0, W, H);
+      if (!frameValid || (video.paused && video.currentTime !== lastFrameTime) || ++cacheAge >= 30) {
+        fctx.drawImage(video, 0, 0, frame.width, frame.height); cacheAge = 0;
+        frameValid = true; lastFrameTime = video.currentTime;
+      }
+      if (video.currentTime > 0.01) lastGoodTime = video.currentTime;
+      wasPlaying = !video.paused;
+    } else if (frameValid) {
+      ctx.drawImage(frame, 0, 0, W, H);
+      if (++blankFrames % 30 === 1) log(`Video frame not ready (readyState ${video.readyState}), keeping last frame`, 'w');
+    } else {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+      ctx.setTransform(Z.s, 0, 0, Z.s, Z.x, Z.y);
+    }
+    // Drawings are painted straight onto the picture every frame (no extra full-size layer to keep in memory).
+    for (const s of strokes) { if (s.tool === 'timer') drawTimer(s, ctx); else drawStroke(s, ctx); }
+    if (current && !current.tap) drawStroke(current, ctx);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawCam(ctx, W, H);                              // instructor cam: on top, never zoomed
+  }
+  function loop(now) {
+    requestAnimationFrame(loop);
+    if (!view.width) return;
+    const playing = !video.paused || !!camStream;   // the instructor cam moves even when the video is paused
+    // Repaint when something changed (new video frame, drawing, zoom), at most RENDER_FPS
+    // times a second; when nothing moves, a slow 10 fps keeps the recording alive.
+    const due = dirty ? now - lastDraw >= frameInterval - 3 : now - lastDraw >= (playing ? frameInterval : 100) - 3;
+    if (due) { render(); dirty = false; lastDraw = now; }
+    if (now - lastUi > 100) {
+      lastUi = now;
+      if (document.activeElement !== $('scrub')) $('scrub').value = video.currentTime;
+      $('tCur').textContent = fmtT(video.currentTime);
+      $('tDur').textContent = fmtRec((video.duration || 0) * 1000);
+      pumpThumbs();
+    }
+    if (video.src) drawStrip();
+  }
+  requestAnimationFrame(loop);
+  ['seeked', 'loadeddata'].forEach(ev => video.addEventListener(ev, () => { dirty = true; }));
+
+  // ---------------------------------------------------------------- playback
+  $('play').onclick = () => video.paused ? video.play().catch(e => log('play() failed: ' + errMsg(e), 'w')) : video.pause();
+  video.addEventListener('play', () => { setIcon($('play'), 'pauseFill'); act('play'); });
+  video.addEventListener('pause', () => { setIcon($('play'), 'playFill'); act('pause'); });
+  video.addEventListener('ended', () => { setIcon($('play'), 'playFill'); });
+
+  function step(dir) {
+    video.pause();
+    video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + dir / fps));
+    act('step', { dir });
+  }
+  // Tap = one frame; hold = keeps stepping.
+  function holdToRepeat(btn, dir) {
+    let t1 = null, t2 = null;
+    const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
+    btn.addEventListener('pointerdown', e => {
+      if (btn.disabled) return;
+      e.preventDefault(); step(dir);
+      t1 = setTimeout(() => { t2 = setInterval(() => step(dir), 80); }, 350);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+  }
+  holdToRepeat($('back'), -1);
+  holdToRepeat($('fwd'), 1);
+  $('scrub').addEventListener('input', e => { video.currentTime = +e.target.value; });
+  $('scrub').addEventListener('change', () => act('seek'));
+
+  // ---------------------------------------------------------------- filmstrip timeline
+  // Like Onform: small pictures of the video under a fixed playhead. Drag the strip to move
+  // through the video (it follows the finger, frame by frame when moving slowly, and keeps
+  // gliding after a flick). Pictures are made on demand around the current moment only.
+  const strip = $('strip'), sc = $('stripC'), sctx = sc.getContext('2d');
+  const thumbs = new Map();
+  let stripFile = null, stripSink = null, stripFailed = false, stripGen = 0, thumbBusy = false;
+  let thumbW = 40, PPS = 90, thumbDt = 0.5, stripDrag = null, glide = null, stripTarget = null, seekWanted = null, stripDrawn = '';
+  function stripLayout() {
+    const r = strip.getBoundingClientRect(), d = devicePixelRatio || 1;
+    if (!r.width || !r.height) return;
+    const w = Math.round(r.width * d), h = Math.round(r.height * d);
+    const ar = video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 16 / 9;
+    const tw = Math.round(Math.max(r.height * 0.85, Math.min(r.height * 1.8, r.height * ar)));
+    if (sc.width === w && sc.height === h && tw === thumbW) return;
+    sc.width = w; sc.height = h;
+    thumbW = tw; PPS = Math.max(90, thumbW); thumbDt = thumbW / PPS;   // ≈ 3 px per frame at 30 fps
+    stripSink = null; thumbs.clear(); stripGen++; stripDrawn = '';
+  }
+  function resetStrip(file) {
+    stripFile = file; stripSink = null; stripFailed = false; thumbs.clear(); stripGen++;
+    stripDrag = null; glide = null; stripTarget = null; seekWanted = null; stripDrawn = '';
+  }
+  if (window.ResizeObserver) new ResizeObserver(stripLayout).observe(strip);
+  video.addEventListener('loadedmetadata', stripLayout);
+  const vDur = () => (isFinite(video.duration) ? video.duration : 0);
+  // Where the strip is: the finger while dragging, else the video (or where it is heading).
+  const stripT = () => stripDrag ? stripDrag.t : glide ? glide.t : (stripTarget !== null ? stripTarget : video.currentTime);
+  function stripSeek(t) {
+    seekWanted = t; stripTarget = t;
+    if (!video.seeking) { video.currentTime = seekWanted; seekWanted = null; }
+  }
+  video.addEventListener('seeked', () => {
+    if (seekWanted !== null) { video.currentTime = seekWanted; seekWanted = null; }
+    else if (!stripDrag && !glide) stripTarget = null;
+  });
+  function drawStrip() {
+    const dur = vDur(), cur = stripT();
+    const key = `${cur.toFixed(4)}|${sc.width}|${thumbs.size}|${bookmarks.length}|${bmFilter}`;
+    if (key === stripDrawn) return;
+    stripDrawn = key;
+    const d = devicePixelRatio || 1, W = sc.width, H = sc.height, cx = W / 2, pps = PPS * d, tw = thumbW * d;
+    sctx.fillStyle = '#071820'; sctx.fillRect(0, 0, W, H);
+    if (!dur || !W) return;
+    const n = Math.ceil(dur / thumbDt);
+    const i0 = Math.max(0, Math.floor((cur - cx / pps) / thumbDt)), i1 = Math.min(n - 1, Math.ceil((cur + cx / pps) / thumbDt));
+    for (let i = i0; i <= i1; i++) {
+      const x = cx + (i * thumbDt - cur) * pps, w = Math.min(tw, (dur - i * thumbDt) * pps);
+      const th = thumbs.get(i);
+      if (th) sctx.drawImage(th, 0, 0, Math.max(1, Math.round(th.width * w / tw)), th.height, x, 0, w, H);
+      else { sctx.fillStyle = '#0B212D'; sctx.fillRect(x, 0, w, H); }
+      sctx.fillStyle = 'rgba(5,17,23,.55)'; sctx.fillRect(x + w - d, 0, d, H);   // thin line between pictures
+    }
+    // bookmarks: a small coloured flag at their moment
+    for (const b of bookmarks) {
+      if (bmFilter && !b.tags.includes(bmFilter)) continue;
+      const x = cx + (b.t - cur) * pps;
+      if (x < -10 * d || x > W + 10 * d) continue;
+      sctx.fillStyle = b.tags.length ? tagColor(b.tags[0]) : '#E3E3E3';
+      sctx.beginPath(); sctx.moveTo(x - 5 * d, 0); sctx.lineTo(x + 5 * d, 0); sctx.lineTo(x, 7 * d); sctx.fill();
+    }
+    // fixed playhead in the middle
+    sctx.fillStyle = 'rgba(5,17,23,.8)'; roundRect(sctx, cx - 4.5 * d, 0, 9 * d, H, 3 * d); sctx.fill();
+    sctx.fillStyle = '#F5B335'; roundRect(sctx, cx - 2.5 * d, d, 5 * d, H - 2 * d, 2.5 * d); sctx.fill();
+  }
+  async function getSink() {
+    if (stripSink) return stripSink;
+    const gen = stripGen;
+    const { Input, ALL_FORMATS, BlobSource, CanvasSink } = await loadMediabunny();
+    const input = new Input({ source: new BlobSource(stripFile), formats: ALL_FORMATS });
+    const track = await input.getPrimaryVideoTrack();
+    if (!track || !(await track.canDecode())) {
+      stripFailed = true;
+      log('Timeline pictures not available for this video on this phone (the strip still works)', 'w');
+      return null;
+    }
+    if (gen !== stripGen) return null;
+    stripSink = new CanvasSink(track, { width: Math.round(thumbW * (devicePixelRatio || 1)), height: sc.height, fit: 'cover' });
+    return stripSink;
+  }
+  // Makes the missing pictures around the current moment, nearest first, in one decoding pass.
+  async function pumpThumbs() {
+    if (thumbBusy || !stripFile || stripFailed || !sc.width) return;
+    if (!video.paused) return;   // only while paused: the phone keeps all its power for playback
+    if (video.videoWidth * video.videoHeight > 1920 * 1088) {   // 4K: decoding it twice is too much for the phone
+      stripFailed = true;
+      log(`Timeline pictures off for this ${video.videoWidth}×${video.videoHeight} video (above 1080p); the strip still works`, 'w');
+      return;
+    }
+    const dur = vDur(); if (!dur) return;
+    const n = Math.ceil(dur / thumbDt), half = Math.ceil(sc.width / (devicePixelRatio || 1) / 2 / thumbW) + 4;
+    const ci = Math.floor(stripT() / thumbDt);
+    const want = [];
+    for (let i = Math.max(0, ci - half); i <= Math.min(n - 1, ci + half); i++) if (!thumbs.has(i)) want.push(i);
+    if (!want.length) return;
+    thumbBusy = true;
+    const gen = stripGen;
+    try {
+      const sink = await getSink();
+      if (!sink || gen !== stripGen) return;
+      const ts = want.map(i => Math.min(dur - 0.01, i * thumbDt + Math.min(0.02, thumbDt / 4)));
+      let k = 0;
+      for await (const wc of sink.canvasesAtTimestamps(ts)) {
+        if (gen !== stripGen) break;
+        const i = want[k++];
+        if (wc) thumbs.set(i, wc.canvas);
+        stripDrawn = '';
+        if (Math.abs(Math.floor(stripT() / thumbDt) - ci) > half) break;   // moved far away: start again around the new spot
+        if (!video.paused) break;
+      }
+      if (thumbs.size > 400) {   // forget the pictures furthest away
+        const c = Math.floor(stripT() / thumbDt);
+        [...thumbs.keys()].sort((a, b) => Math.abs(b - c) - Math.abs(a - c)).slice(0, thumbs.size - 300).forEach(i => thumbs.delete(i));
+      }
+    } catch (e) {
+      stripFailed = true;
+      log('Timeline pictures stopped: ' + errMsg(e), 'w');
+    } finally { thumbBusy = false; }
+  }
+  strip.addEventListener('pointerdown', e => {
+    if (!video.src || !vDur() || recState === 'finishing') return;
+    e.preventDefault();
+    try { strip.setPointerCapture(e.pointerId); } catch (err) {}
+    glide = null;
+    if (!video.paused) video.pause();
+    const t = stripT();
+    stripDrag = { id: e.pointerId, x0: e.clientX, t0: t, t, lx: e.clientX, lt: performance.now(), v: 0, moved: false };
+  });
+  strip.addEventListener('pointermove', e => {
+    if (!stripDrag || stripDrag.id !== e.pointerId) return;
+    const now = performance.now(), dx = e.clientX - stripDrag.lx, dt = Math.max(1, now - stripDrag.lt);
+    stripDrag.v = 0.7 * stripDrag.v + 0.3 * (dx / dt);   // px per ms, smoothed
+    stripDrag.lx = e.clientX; stripDrag.lt = now;
+    if (Math.abs(e.clientX - stripDrag.x0) > 3) stripDrag.moved = true;
+    stripDrag.t = Math.max(0, Math.min(vDur(), stripDrag.t0 - (e.clientX - stripDrag.x0) / PPS));
+    stripSeek(stripDrag.t);
+  });
+  function stripEnd(e) {
+    if (!stripDrag || stripDrag.id !== e.pointerId) return;
+    const s = stripDrag; stripDrag = null;
+    if (!s.moved) return;
+    if (Math.abs(s.v) > 0.35 && performance.now() - s.lt < 80) {   // a flick: keep gliding and slow down
+      glide = { t: s.t, v: s.v, last: performance.now() };
+      const tick = now => {
+        if (!glide) return;
+        const dt = now - glide.last; glide.last = now;
+        glide.v *= Math.pow(0.994, dt);
+        glide.t = Math.max(0, Math.min(vDur(), glide.t - glide.v * dt / PPS));
+        stripSeek(glide.t);
+        if (Math.abs(glide.v) < 0.03 || glide.t <= 0 || glide.t >= vDur()) { glide = null; act('seek'); return; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } else act('seek');
+  }
+  strip.addEventListener('pointerup', stripEnd);
+  strip.addEventListener('pointercancel', stripEnd);
+
+  // Slow motion first (most used), then fast forward (Scott: 2× and 5× to skip through).
+  const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5];
+  SPEEDS.slice().reverse().forEach(v => {
+    const b = document.createElement('button');
+    b.textContent = v + '×'; b.dataset.v = v;
+    b.onclick = () => { setSpeed(v); closeMenus(); };
+    $('speedMenu').appendChild(b);
+  });
+  function setSpeed(v) {
+    video.playbackRate = video.defaultPlaybackRate = v;
+    $('speed').textContent = v + '×';
+    $('speedMenu').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v === v));
+    act('rate');
+  }
+  setSpeed(1);
+  $('speed').onclick = () => { const open = !$('speedMenu').classList.contains('open'); closeMenus(); $('speedMenu').classList.toggle('open', open); };
+
+  // ---------------------------------------------------------------- tool panels
+  function closeMenus() {
+    document.querySelectorAll('.grp.open').forEach(g => g.classList.remove('open'));
+    $('speedMenu').classList.remove('open');
+  }
+  document.querySelectorAll('.grp .cur').forEach(b => b.onclick = () => {
+    const g = b.parentElement, open = !g.classList.contains('open');
+    closeMenus(); g.classList.toggle('open', open);
+  });
+  document.addEventListener('pointerdown', e => {
+    if (!e.target.closest('.grp, #speedWrap')) closeMenus();
+  }, true);
+
+  const TOOL_HINTS = {
+    angle: 'Angle: draw the first line from the joint, then the second one',
+    text: 'Tap where the note goes',
+    timer: 'Timer: tap once to start it at this frame, tap again to stop it',
+    circle: 'Drag to draw a circle around a player'
+  };
+  function selectTool(t, quiet) {
+    tool = t; prefs.tool = t; savePrefs();
+    pendingAngle = null;
+    document.querySelectorAll('.tool').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+    setIcon($('toolCur'), t, 22);
+    if (!quiet) { closeMenus(); hint(TOOL_HINTS[t] || ''); }
+  }
+  function selectColor(c, quiet) {
+    color = c; prefs.color = c; savePrefs();
+    document.querySelectorAll('.col').forEach(b => b.classList.toggle('on', b.dataset.c === c));
+    $('colorCur').querySelector('.sw').style.background = c;
+    if (!quiet) closeMenus();
+  }
+  function selectSize(k, quiet) {
+    sizeK = k; prefs.sizeK = k; savePrefs();
+    document.querySelectorAll('.siz').forEach(b => b.classList.toggle('on', +b.dataset.s === k));
+    const px = Math.round(8 * Math.sqrt(k));
+    const d = $('sizeCur').querySelector('.dot'); d.style.width = d.style.height = px + 'px';
+    if (!quiet) closeMenus();
+  }
+  document.querySelectorAll('.tool').forEach(b => b.onclick = () => selectTool(b.dataset.t));
+  document.querySelectorAll('.col').forEach(b => b.onclick = () => selectColor(b.dataset.c));
+  document.querySelectorAll('.siz').forEach(b => b.onclick = () => selectSize(+b.dataset.s));
+  selectTool(tool, true); selectColor(color, true); selectSize(sizeK, true);
+  // ---------------------------------------------------------------- instructor cam (optional)
+  // The front camera is drawn in a bottom corner of the picture (opposite the tools), so it is
+  // part of the recording. Mirrored, like a selfie.
+  const camV = $('cam');
+  let camStream = null, camRect = null, camDrag = null;   // drag the cam to any corner; it snaps to the nearest one
+  async function setCam(on) {
+    if (on && !camStream) {
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+      } catch (e) {
+        log('Camera refused: ' + errMsg(e), 'w');
+        alert('The camera could not be opened. Check that Safari is allowed to use the camera (Settings > Safari > Camera).');
+        camStream = null;
+      }
+      if (camStream) {
+        camV.srcObject = camStream;
+        await camV.play().catch(e => log('Camera preview: ' + errMsg(e), 'w'));
+        const tr = camStream.getVideoTracks()[0];
+        tr.addEventListener('ended', () => { log('Camera stopped by the system', 'w'); setCam(false); });
+        tr.addEventListener('mute', () => log('Camera picture paused by the system', 'w'));
+        tr.addEventListener('unmute', () => log('Camera picture back'));
+        let st = {}; try { st = tr.getSettings(); } catch (e) {}
+        log(`Instructor cam on: ${st.width || '?'}×${st.height || '?'} ${st.facingMode || ''}`);
+        checkCam();
+      }
+    } else if (!on && camStream) {
+      camStream.getTracks().forEach(t => t.stop());
+      camStream = null; camV.srcObject = null; camRect = null; camDrag = null;
+      log('Instructor cam off');
+    }
+    $('camBtn').classList.toggle('on', !!camStream);
+    $('camBtn').setAttribute('aria-pressed', camStream ? 'true' : 'false');
+    act('cam', { on: !!camStream });
+    dirty = true;
+  }
+  $('camBtn').onclick = () => setCam(!camStream);
+  // If the camera opens but no picture arrives, say so (and try to start the preview again).
+  function checkCam() {
+    const s0 = camStream;
+    setTimeout(async () => {
+      if (camStream !== s0 || !camStream) return;
+      if (camV.readyState >= 2 && camV.videoWidth) { log(`Instructor cam picture OK (${camV.videoWidth}×${camV.videoHeight})`); return; }
+      log(`Instructor cam: no picture yet (readyState ${camV.readyState}, paused ${camV.paused}, track ${camStream.getVideoTracks().map(t => t.readyState + (t.muted ? ' muted' : '')).join(',')})`, 'w');
+      try { camV.srcObject = null; camV.srcObject = camStream; await camV.play(); } catch (e) { log('Camera preview retry: ' + errMsg(e), 'w'); }
+      setTimeout(() => {
+        if (camStream !== s0 || !camStream) return;
+        if (camV.readyState >= 2 && camV.videoWidth) log('Instructor cam picture OK after retry');
+        else { log('Instructor cam: still no picture', 'e'); hint('The camera gives no picture. Turn it off and on again; if it still fails, send the diagnostics.', 5000); }
+      }, 1500);
+    }, 1500);
+  }
+  // Keeps the cam out from under the buttons that float over the video (landscape header,
+  // tool rails), so it can always be seen and grabbed.
+  let camObst = [], camObstAt = 0;
+  function camClear(x, y, w, h, m, W, H, corner) {
+    const now = performance.now();
+    if (now - camObstAt > 500) {
+      camObstAt = now;
+      const vr = view.getBoundingClientRect(), k = vr.width ? view.width / vr.width : 1;
+      camObst = [...document.querySelectorAll('header button, #leftRail > *, #tools > *')].map(el => el.getBoundingClientRect())
+        .filter(r => r.width && r.height)
+        .map(r => ({ x0: (r.left - vr.left) * k, x1: (r.right - vr.left) * k, y0: (r.top - vr.top) * k, y1: (r.bottom - vr.top) * k }));
+    }
+    const hits = (X, Y) => camObst.filter(o => o.x1 > X && o.x0 < X + w && o.y1 > Y && o.y0 < Y + h);
+    let nx = x, ny = y;
+    for (let i = 0; i < 4; i++) {          // slide along the side, away from the corner
+      const hs = hits(nx, ny); if (!hs.length) return [nx, ny];
+      ny = corner[0] === 't' ? Math.max(...hs.map(o => o.y1)) + m : Math.min(...hs.map(o => o.y0)) - h - m;
+      if (ny < 0 || ny > H - h) break;
+    }
+    nx = x; ny = y;
+    for (let i = 0; i < 4; i++) {          // or along the top / bottom edge
+      const hs = hits(nx, ny); if (!hs.length) return [nx, ny];
+      nx = corner[1] === 'l' ? Math.max(...hs.map(o => o.x1)) + m : Math.min(...hs.map(o => o.x0)) - w - m;
+      if (nx < 0 || nx > W - w) break;
+    }
+    return [x, y];
+  }
+  function drawCam(c, W, H) {
+    if (!camStream || camV.readyState < 2 || !camV.videoWidth) return;
+    const short = Math.min(W, H);
+    const w = Math.round(short * (W > H ? 0.3 : 0.34));
+    const h = Math.round(w * camV.videoHeight / camV.videoWidth);
+    const m = Math.round(short * 0.03), r = Math.round(w * 0.08);
+    const corner = prefs.camPos || ('b' + (document.body.classList.contains('lefty') ? 'r' : 'l'));   // default: bottom, opposite the tools
+    let x = corner[1] === 'r' ? W - w - m : m, y = corner[0] === 'b' ? H - h - m : m;
+    if (camDrag) { x = Math.min(W - w, Math.max(0, camDrag.x)); y = Math.min(H - h, Math.max(0, camDrag.y)); }
+    else [x, y] = camClear(x, y, w, h, m, W, H, corner);
+    camRect = { x, y, w, h, m };
+    c.save();
+    roundRect(c, x, y, w, h, r); c.clip();
+    c.translate(x + w, y); c.scale(-1, 1);
+    c.drawImage(camV, 0, 0, w, h);
+    c.restore();
+    c.save();
+    c.lineWidth = Math.max(2, Math.round(short / 220)); c.strokeStyle = '#225570';
+    roundRect(c, x, y, w, h, r); c.stroke();
+    c.restore();
+  }
+
+  $('hideBtn').onclick = () => {
+    const bare = $('app').classList.toggle('bare');
+    setIcon($('hideBtn'), bare ? 'eyeOff' : 'eye', 20);
+    $('hideBtn').setAttribute('aria-label', bare ? 'Show drawing tools' : 'Hide drawing tools');
+    closeMenus();
+  };
+
+  // ---------------------------------------------------------------- drawing
+  const baseW = () => Math.max(3, Math.round(Math.max(view.width, view.height) / 320));
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  function canvasPos(e) {
+    const r = view.getBoundingClientRect();
+    return [(e.clientX - r.left) * view.width / r.width, (e.clientY - r.top) * view.height / r.height];
+  }
+  function pos(e) {                                   // canvas point → base (unzoomed) point
+    const [cx, cy] = canvasPos(e);
+    return [Math.round((cx - Z.x) / Z.s), Math.round((cy - Z.y) / Z.s)];
+  }
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath();
+  }
+  // A label on a dark rounded box (light box for black text), so it reads on any background.
+  function drawLabel(c, text, x, y, fs, col, align, outline) {
+    c.save();
+    c.font = `700 ${Math.round(fs)}px Montserrat, -apple-system, system-ui, sans-serif`;
+    c.textBaseline = 'middle';
+    const w = c.measureText(text).width, padX = fs * 0.4, h = fs * 1.45;
+    const bx = align === 'center' ? x - w / 2 - padX : x - padX, by = y - h / 2;
+    c.fillStyle = col === '#000000' ? 'rgba(255,255,255,0.88)' : 'rgba(5,17,23,0.8)';
+    roundRect(c, bx, by, w + padX * 2, h, Math.min(h / 3, fs * 0.35)); c.fill();
+    if (outline) { c.strokeStyle = outline; c.lineWidth = Math.max(2, fs * 0.12); c.stroke(); }
+    c.fillStyle = col;
+    c.textAlign = 'left';
+    c.fillText(text, bx + padX, y + fs * 0.04);
+    c.restore();
+  }
+  function drawAngle(s, c) {
+    const [V, A, B] = s.pts;
+    c.beginPath(); c.moveTo(V[0], V[1]); c.lineTo(A[0], A[1]);
+    if (B) { c.moveTo(V[0], V[1]); c.lineTo(B[0], B[1]); }
+    c.stroke();
+    c.beginPath(); c.arc(V[0], V[1], Math.max(3, s.w * 1.2), 0, Math.PI * 2); c.fill();
+    if (!B || dist(V, B) < 2) return;
+    const a1 = Math.atan2(A[1] - V[1], A[0] - V[0]), a2 = Math.atan2(B[1] - V[1], B[0] - V[0]);
+    let d = a2 - a1;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d <= -Math.PI) d += 2 * Math.PI;
+    const deg = Math.abs(d) * 180 / Math.PI;
+    const r = Math.max(10, Math.min(s.fs * 2.2, dist(V, A) * 0.45, dist(V, B) * 0.45));
+    c.save();
+    c.lineWidth = Math.max(2, s.w * 0.6);
+    c.beginPath(); c.arc(V[0], V[1], r, a1, a1 + d, d < 0); c.stroke();
+    c.restore();
+    const mid = a1 + d / 2, lr = r + s.fs * 0.85;
+    drawLabel(c, `${Math.round(deg)}°`, V[0] + Math.cos(mid) * lr, V[1] + Math.sin(mid) * lr, s.fs * DEG_K, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
+  }
+  const DEG_K = 0.62;   // degree labels are smaller than texts and timers
+  // A straight line also shows its angle to the horizontal (0–90°), with a dashed level line
+  // and a small arc at the end the line was started from.
+  function drawLineAngle(s, c, a, b) {
+    const len = dist(a, b); if (len < s.fs * 2.5) return;
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const deg = Math.atan2(Math.abs(dy), Math.abs(dx)) * 180 / Math.PI;
+    const dir = dx >= 0 ? 1 : -1, r = Math.max(14, Math.min(s.fs * 2.2, len * 0.4));
+    c.save();
+    c.lineWidth = Math.max(1.5, s.w * 0.45); c.setLineDash([s.w * 1.6, s.w * 1.6]);
+    c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(a[0] + dir * r * 1.25, a[1]); c.stroke();
+    c.setLineDash([]);
+    const a0 = dir > 0 ? 0 : Math.PI, a1 = Math.atan2(dy, dx);
+    let d = a1 - a0; while (d > Math.PI) d -= 2 * Math.PI; while (d <= -Math.PI) d += 2 * Math.PI;
+    if (deg >= 1) { c.beginPath(); c.arc(a[0], a[1], r, a0, a0 + d, d < 0); c.stroke(); }
+    c.restore();
+    const mid = a0 + d / 2, lr = r + s.fs * 0.95;
+    drawLabel(c, `${Math.round(deg)}°`, a[0] + Math.cos(mid) * lr, a[1] + Math.sin(mid) * lr - (deg < 8 ? s.fs * 0.6 : 0), s.fs * DEG_K, s.color === '#000000' ? '#000000' : '#FFFFFF', 'center');
+  }
+  // The box a text or timer label covers (base coordinates), to grab and move it.
+  function labelBox(s) {
+    const c = ctx; c.save();
+    c.font = `700 ${Math.round(s.fs)}px Montserrat, -apple-system, system-ui, sans-serif`;
+    const txt = s.tool === 'timer' ? '-00.00 s' : s.text || '';
+    const w = c.measureText(txt).width; c.restore();
+    const padX = s.fs * 0.4, h = s.fs * 1.45, x = s.pts[0][0], y = s.pts[0][1];
+    const bx = s.tool === 'timer' ? x - w / 2 - padX : x - padX;
+    return { x: bx - 6, y: y - h / 2 - 6, w: w + padX * 2 + 12, h: h + 12 };
+  }
+  function hitLabel(p, kind) {
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const s = strokes[i]; if (s.tool !== kind) continue;
+      const b = labelBox(s);
+      if (p[0] >= b.x && p[0] <= b.x + b.w && p[1] >= b.y && p[1] <= b.y + b.h) return s;
+    }
+    return null;
+  }
+  function drawTimer(s, c) {
+    const stopped = s.t1 != null;
+    const dt = (stopped ? s.t1 : video.currentTime) - s.t0;
+    const txt = `${dt < 0 ? '−' : ''}${Math.abs(dt).toFixed(2)} s`;
+    drawLabel(c, txt, s.pts[0][0], s.pts[0][1], s.fs, s.color, 'center', stopped ? '#1484C4' : null);
+  }
+  function drawStroke(s, c) {
+    c.save();
+    c.strokeStyle = s.color; c.fillStyle = s.color;
+    c.lineWidth = s.w; c.lineCap = 'round'; c.lineJoin = 'round';
+    const p = s.pts, a = p[0], b = p[p.length - 1];
+    switch (s.tool) {
+      case 'arrow': {
+        c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+        const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = s.w * 4.5;
+        c.beginPath();
+        c.moveTo(b[0], b[1]);
+        c.lineTo(b[0] - L * Math.cos(ang - 0.45), b[1] - L * Math.sin(ang - 0.45));
+        c.lineTo(b[0] - L * Math.cos(ang + 0.45), b[1] - L * Math.sin(ang + 0.45));
+        c.closePath(); c.fill();
+        break;
+      }
+      case 'line':
+        c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+        drawLineAngle(s, c, a, b);
+        break;
+      case 'circle': {
+        const rx = Math.abs(b[0] - a[0]) / 2, ry = Math.abs(b[1] - a[1]) / 2;
+        if (rx < 1 && ry < 1) break;
+        c.beginPath(); c.ellipse((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Math.max(rx, 1), Math.max(ry, 1), 0, 0, Math.PI * 2); c.stroke();
+        break;
+      }
+      case 'angle': drawAngle(s, c); break;
+      case 'text': drawLabel(c, s.text, a[0], a[1], s.fs, s.color, 'left'); break;
+      case 'timer': break;                         // drawn live in render()
+      default:
+        c.beginPath();
+        p.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]));
+        if (p.length === 1) c.lineTo(p[0][0] + 0.1, p[0][1]);
+        c.stroke();
+    }
+    c.restore();
+  }
+  function redrawInk() { dirty = true; }
+  if (document.fonts && document.fonts.load) document.fonts.load('700 20px Montserrat').then(redrawInk).catch(() => {});
+
+  function newShape(t, p) {
+    const w = Math.max(2, Math.round(baseW() * sizeK));
+    const fs = Math.max(14, Math.round(baseW() * (t === 'text' ? 8 : 6.5) * Math.sqrt(sizeK)));
+    return { tool: t, color, w, fs, pts: [p] };
+  }
+  function cancelCurrent() {
+    if (current && current.reopened) { delete current.reopened; current.pts.length = 2; strokes.push(current); }
+    current = null; redrawInk();
+  }
+  const logShape = (s, type) => act(type || 'stroke', { tool: s.tool, color: s.color, w: s.w, pts: s.pts, text: s.text, t0: s.t0 });
+
+  const pointers = new Map();
+  let pinch = null, labelDrag = null;
+  const area = $('stageWrap');   // the whole video area, black bands included
+  area.addEventListener('pointerdown', e => {
+    if (e.target.closest('#textBox')) return;
+    if (!view.width || !video.src) return;
+    e.preventDefault();
+    if (textPending) commitText();
+    closeMenus();
+    try { area.setPointerCapture(e.pointerId); } catch (err) {}
+    const cp = canvasPos(e);
+    if (camStream && camRect && !pointers.size && cp[0] >= camRect.x && cp[0] <= camRect.x + camRect.w && cp[1] >= camRect.y && cp[1] <= camRect.y + camRect.h) {
+      camDrag = { id: e.pointerId, x: camRect.x, y: camRect.y, dx: cp[0] - camRect.x, dy: cp[1] - camRect.y };
+      dirty = true; return;
+    }
+    pointers.set(e.pointerId, cp);
+    if (pointers.size === 2) {                         // second finger: zoom / pan, cancel the shape
+      cancelCurrent();
+      const [a, b] = [...pointers.values()];
+      const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      pinch = { d0: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, s0: Z.s, base: [(mid[0] - Z.x) / Z.s, (mid[1] - Z.y) / Z.s] };
+      return;
+    }
+    if (pointers.size > 2 || pinch) return;
+    const p = pos(e);
+    if (tool === 'text' || tool === 'timer') {
+      const hit = hitLabel(p, tool);
+      if (hit) { labelDrag = { s: hit, id: e.pointerId, p0: p, start: hit.pts[0].slice(), moved: false }; return; }
+      current = Object.assign(newShape(tool, p), { tap: true }); return;
+    }
+    if (tool === 'angle' && pendingAngle && strokes[strokes.length - 1] === pendingAngle) {
+      current = strokes.pop();                         // second line of the angle, from the same joint
+      current.reopened = true; current.pts[2] = p;
+      redrawInk(); return;
+    }
+    pendingAngle = null;
+    current = newShape(tool, p);
+    if (tool !== 'pen') current.pts.push(p);
+    redrawInk();
+  });
+  area.addEventListener('pointermove', e => {
+    if (camDrag && camDrag.id === e.pointerId) {
+      const cp = canvasPos(e);
+      camDrag.x = cp[0] - camDrag.dx; camDrag.y = cp[1] - camDrag.dy; dirty = true; return;
+    }
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, canvasPos(e));
+    if (pinch && pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      Z.s = pinch.s0 * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d0;
+      Z.s = Math.min(6, Math.max(1, Z.s));
+      Z.x = mid[0] - pinch.base[0] * Z.s; Z.y = mid[1] - pinch.base[1] * Z.s;
+      clampZoom();
+      return;
+    }
+    if (labelDrag && labelDrag.id === e.pointerId) {
+      const p = pos(e), dx = p[0] - labelDrag.p0[0], dy = p[1] - labelDrag.p0[1];
+      if (!labelDrag.moved && Math.hypot(dx, dy) < Math.max(6, baseW() * 1.5)) return;
+      labelDrag.moved = true;
+      labelDrag.s.pts[0] = [labelDrag.start[0] + dx, labelDrag.start[1] + dy];
+      redrawInk(); return;
+    }
+    if (!current || current.tap || !pointers.has(e.pointerId)) return;
+    const p = pos(e);
+    if (current.tool === 'pen') {
+      current.pts.push(p);
+      dirty = true;
+      return;
+    }
+    if (current.reopened) current.pts[2] = p; else current.pts[1] = p;
+    redrawInk();
+  });
+  function endShape() {
+    if (!current) return;
+    const s = current; current = null;
+    const minLen = Math.max(8, baseW() * 2);
+    if (s.tap) {
+      delete s.tap;
+      if (s.tool === 'timer') {
+        // One tap starts a timer at this frame, the next tap stops it (its value then stays fixed).
+        if (runningTimer && strokes.includes(runningTimer)) {
+          runningTimer.t1 = +video.currentTime.toFixed(3);
+          act('timerStop', { t0: runningTimer.t0, t1: runningTimer.t1 });
+          hint(`Timer stopped: ${(runningTimer.t1 - runningTimer.t0).toFixed(2)} s`, 2000);
+          runningTimer = null; redrawInk(); return;
+        }
+        s.t0 = +video.currentTime.toFixed(3); strokes.push(s); runningTimer = s; logShape(s); redrawInk();
+        hint(video.paused ? 'Timer started: play the video or step frames, then tap again to stop it' : 'Timer started: tap again to stop it', 3000);
+      }
+      else openTextBox(s);
+      return;
+    }
+    if (s.tool === 'angle') {
+      if (s.reopened) {
+        delete s.reopened;
+        if (dist(s.pts[0], s.pts[2]) < minLen) { s.pts.length = 2; strokes.push(s); redrawInk(); return; }
+        strokes.push(s); pendingAngle = null; logShape(s, 'angle2'); redrawInk(); return;
+      }
+      if (dist(s.pts[0], s.pts[1]) < minLen) { redrawInk(); return; }
+      strokes.push(s); pendingAngle = s; logShape(s);
+      hint('Now draw the second line', 2000);
+      redrawInk(); return;
+    }
+    if (s.tool !== 'pen' && dist(s.pts[0], s.pts[1]) < minLen) { redrawInk(); return; }
+    strokes.push(s); logShape(s);
+    redrawInk();
+  }
+  function pointerEnd(e) {
+    if (camDrag && camDrag.id === e.pointerId) {
+      const cx = camDrag.x + camRect.w / 2, cy = camDrag.y + camRect.h / 2;
+      prefs.camPos = (cy > view.height / 2 ? 'b' : 't') + (cx > view.width / 2 ? 'r' : 'l');
+      camDrag = null; savePrefs(); dirty = true;
+      act('camMove', { pos: prefs.camPos });
+      return;
+    }
+    if (labelDrag && labelDrag.id === e.pointerId) {
+      pointers.delete(e.pointerId);
+      const L = labelDrag; labelDrag = null;
+      if (L.moved) { act('move', { tool: L.s.tool, pts: L.s.pts }); redrawInk(); return; }
+      if (L.s.tool === 'text') { strokes.splice(strokes.indexOf(L.s), 1); openTextBox(L.s); redrawInk(); return; }   // tap on a text: edit it
+      current = Object.assign(newShape('timer', L.p0), { tap: true }); endShape(); return;   // tap on a timer: as before
+    }
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId);
+    if (pinch) {
+      if (pointers.size < 2) { act('zoom', { s: +Z.s.toFixed(2) }); }
+      if (pointers.size === 0) pinch = null;
+      return;
+    }
+    endShape();
+  }
+  area.addEventListener('pointerup', pointerEnd);
+  area.addEventListener('pointercancel', pointerEnd);
+  // Laptop: pinch on the trackpad (or Ctrl + wheel) zooms at the cursor; scrolling pans when zoomed.
+  area.addEventListener('wheel', e => {
+    if (!video.src) return;
+    e.preventDefault();
+    const [cx, cy] = canvasPos(e);
+    if (e.ctrlKey) {
+      const base = [(cx - Z.x) / Z.s, (cy - Z.y) / Z.s];
+      Z.s = Math.min(6, Math.max(1, Z.s * Math.exp(-e.deltaY * 0.01)));
+      Z.x = cx - base[0] * Z.s; Z.y = cy - base[1] * Z.s;
+    } else { Z.x -= e.deltaX; Z.y -= e.deltaY; }
+    clampZoom();
+  }, { passive: false });
+
+  // Text notes: a small text field appears where you tapped; Enter (or tapping elsewhere) places it.
+  function openTextBox(s) {
+    textPending = s;
+    const r = view.getBoundingClientRect();
+    const x = (s.pts[0][0] * Z.s + Z.x) * r.width / view.width, y = (s.pts[0][1] * Z.s + Z.y) * r.height / view.height;
+    const tb = $('textBox');
+    tb.value = s.text || ''; tb.hidden = false;
+    tb.style.left = Math.max(0, Math.min(x - 10, r.width - tb.offsetWidth)) + 'px';
+    tb.style.top = Math.max(0, Math.min(y - 20, r.height - 44)) + 'px';
+    tb.style.color = s.color === '#000000' ? '#fff' : s.color;
+    tb.focus();
+  }
+  function commitText() {
+    if (!textPending) return;
+    const s = textPending, tb = $('textBox');
+    textPending = null;
+    const v = tb.value.trim();
+    tb.hidden = true; tb.blur();
+    if (v) { s.text = v; strokes.push(s); logShape(s); redrawInk(); }
+  }
+  $('textBox').addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); commitText(); }
+    else if (e.key === 'Escape') { $('textBox').value = ''; commitText(); }
+  });
+  $('textBox').addEventListener('blur', () => setTimeout(commitText, 0));
+
+  $('undo').onclick = () => {
+    if (textPending) { $('textBox').value = ''; commitText(); return; }
+    const s = strokes.pop();
+    if (s && s === runningTimer) runningTimer = null;
+    if (s && s === pendingAngle) pendingAngle = null;
+    redrawInk(); act('undo');
+  };
+  $('clear').onclick = () => { if (textPending) { $('textBox').value = ''; commitText(); } strokes = []; pendingAngle = null; runningTimer = null; redrawInk(); act('clear'); };
+
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
+
+  // ---------------------------------------------------------------- tools: drag to a corner
+  const setBarH = () => document.documentElement.style.setProperty('--barH', $('bar').offsetHeight + 'px');
+  if (window.ResizeObserver) new ResizeObserver(setBarH).observe($('bar'));
+  setBarH();
+  // iOS 26.0 can lay out a full-screen home-screen app shorter than the window it is shown in,
+  // leaving an empty band at the bottom (fixed by Apple in iOS 26.1). Stretch the app to the
+  // window, never further: on some iPhones the page area is shorter than the screen itself.
+  let screenLogged = false;
+  function fixStandaloneHeight() {
+    const app = $('app');
+    if (app.hidden) return;                       // measure only once the analysis screen is shown
+    app.style.bottom = ''; app.style.height = '';
+    const h = Math.round(app.getBoundingClientRect().height), win = Math.round(window.innerHeight);
+    if (!screenLogged) {
+      screenLogged = true;
+      const standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+      log(`Screen: app ${h} px, window ${win} px, screen ${Math.max(screen.width, screen.height)} px, standalone ${standalone}`);
+    }
+    if (win - h > 20) { app.style.bottom = 'auto'; app.style.height = win + 'px'; log(`App stretched to the window: ${h} → ${win} px`, 'w'); }
+  }
+  fixStandaloneHeight();
+  addEventListener('resize', () => setTimeout(fixStandaloneHeight, 300));
+  (() => {
+    const rail = $('tools');
+    let start = null, dragged = false, justDragged = false;
+    rail.addEventListener('pointerdown', e => {
+      if (e.target.closest('.opts')) return;
+      start = { x: e.clientX, y: e.clientY, id: e.pointerId }; dragged = false;
+    });
+    window.addEventListener('pointermove', e => {
+      if (!start || e.pointerId !== start.id) return;
+      const dx = e.clientX - start.x, dy = e.clientY - start.y;
+      if (!dragged && Math.hypot(dx, dy) > 14) {
+        dragged = true; closeMenus(); rail.classList.add('dragging');
+        try { rail.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+      if (dragged) rail.style.transform = `translate(${dx}px, ${dy}px)`;
+    });
+    const end = e => {
+      if (!start || e.pointerId !== start.id) return;
+      if (dragged) {
+        const r = $('app').getBoundingClientRect();
+        const pos = (e.clientY > r.top + r.height / 2 ? 'b' : 't') + (e.clientX < r.left + r.width / 2 ? 'l' : 'r');
+        rail.style.transform = ''; rail.classList.remove('dragging');
+        setToolPos(pos); justDragged = true; setTimeout(() => { justDragged = false; }, 300);
+        log('Tools moved to ' + pos);
+      }
+      start = null; dragged = false;
+    };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    rail.addEventListener('click', e => { if (justDragged) { e.stopPropagation(); e.preventDefault(); } }, true);
+  })();
+
+  // ---------------------------------------------------------------- bookmarks
+  // A bookmark = a moment of the video + tags + an optional note. Saved on the device for this
+  // video (same file name and size), so notes prepared beforehand are still there next time.
+  const DEFAULT_TAGS = ['Serve', 'Receive', 'Set', 'Hit', 'Defense'];
+  const TAG_COLORS = ['#1484C4', '#4FB3E8', '#E3E3E3', '#8FD0F2', '#5B9BC0', '#B7C9D3', '#2E7FB0', '#D6E6EE'];
+  let bookmarks = [], videoKey = '', bmEditing = null, bmFilter = null;
+  const allTags = () => DEFAULT_TAGS.concat(prefs.customTags || []);
+  // Scott's colour code (as in RR+) for the five base tags; custom tags take the blue palette.
+  const RR_COLORS = { Serve: '#ED1C2E', Receive: '#8B48BB', Set: '#E5B900', Hit: '#0579C9', Defense: '#14CC5C' };
+  const tagColor = t => RR_COLORS[t] || TAG_COLORS[Math.max(0, (prefs.customTags || []).indexOf(t)) % TAG_COLORS.length];
+  function loadBookmarks() {
+    try { bookmarks = JSON.parse(localStorage.getItem('sr-bm-' + videoKey)) || []; } catch (e) { bookmarks = []; }
+    bmFilter = null; renderMarks();
+    if (bookmarks.length) log(`${bookmarks.length} bookmark(s) restored for this video`);
+  }
+  function saveBookmarks() {
+    bookmarks.sort((a, b) => a.t - b.t);
+    try { localStorage.setItem('sr-bm-' + videoKey, JSON.stringify(bookmarks)); } catch (e) { log('Could not save bookmarks: ' + errMsg(e), 'w'); }
+    renderMarks();
+  }
+  function renderMarks() {
+    const box = $('bmMarks'); box.innerHTML = '';
+    const d = video.duration;
+    if (!isFinite(d) || !d) return;
+    bookmarks.filter(b => !bmFilter || b.tags.includes(bmFilter)).forEach(b => {
+      const i = document.createElement('i');
+      i.style.left = (b.t / d * 100) + '%';
+      i.style.background = b.tags.length ? tagColor(b.tags[0]) : '#E3E3E3';
+      box.appendChild(i);
+    });
+  }
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const chipHtml = (t, sel) => `<button class="chip${sel ? ' sel' : ''}" data-tag="${esc(t)}"><i style="background:${tagColor(t)}"></i>${esc(t)}</button>`;
+  function openBookmarks() {
+    closeMenus();
+    $('result').style.display = 'none'; $('settings').style.display = 'none';
+    $('bmCard').style.display = 'block';
+    showBmList();
+    openSheet();
+  }
+  function showBmList() {
+    bmEditing = null;
+    $('bmEditBox').hidden = true; $('bmListBox').hidden = false;
+    $('bmQuickT').textContent = `Bookmark ${fmtT(video.currentTime)}: tap a tag`;
+    $('bmQuick').innerHTML = allTags().map(t => chipHtml(t, false)).join('');
+    const used = allTags().filter(t => bookmarks.some(b => b.tags.includes(t)));
+    $('bmFilter').innerHTML = used.length ? `<button class="chip${!bmFilter ? ' sel' : ''}" data-tag="">All</button>` + used.map(t => chipHtml(t, bmFilter === t)).join('') : '';
+    const list = bookmarks.filter(b => !bmFilter || b.tags.includes(bmFilter));
+    $('bmItems').innerHTML = list.length ? list.map(b => `<div class="bmItem">
+        <button class="bmT" data-go="${b.id}">${fmtT(b.t)}</button>
+        <div class="bmBody">${b.tags.length ? '<div class="chips">' + b.tags.map(t => chipHtml(t, true)).join('') + '</div>' : ''}${b.note ? '<p>' + esc(b.note) + '</p>' : ''}</div>
+        <button data-edit="${b.id}" aria-label="Edit bookmark">Edit</button></div>`).join('')
+      : '<p id="bmEmpty">No bookmarks yet. Tap a tag above to mark this moment, then jump back to it from here.</p>';
+  }
+  function editBookmark(b) {
+    bmEditing = b;
+    $('bmListBox').hidden = true; $('bmEditBox').hidden = false;
+    $('bmTime').textContent = `At ${fmtT(b.t)}`;
+    renderBmTags();
+    $('bmNote').value = b.note || '';
+    $('bmNewTag').value = '';
+    $('bmDelete').hidden = false;
+  }
+  function renderBmTags() {
+    $('bmTags').innerHTML = allTags().map(t => chipHtml(t, bmEditing.tags.includes(t))).join('');
+  }
+  function addBookmarkNow(openEditor) {
+    if (!video.src) return;
+    const b = { id: Date.now().toString(36), t: +video.currentTime.toFixed(3), tags: [], note: '' };
+    act('bookmark', { bt: b.t });
+    // Saved straight away: every later change in the editor is saved as it is made.
+    bookmarks.push(b); saveBookmarks();
+    if (openEditor) { $('bmCard').style.display = 'block'; $('result').style.display = 'none'; $('settings').style.display = 'none'; openSheet(); editBookmark(b); }
+    else hint(`Bookmark added at ${fmtT(b.t)}`, 1500);
+    return b;
+  }
+  // Two taps: the Bookmarks button, then a tag. The bookmark is saved and the panel closes.
+  $('bmQuick').onclick = e => {
+    const c = e.target.closest('.chip'); if (!c || !video.src) return;
+    const b = addBookmarkNow(false); if (!b) return;
+    b.tags = [c.dataset.tag]; saveBookmarks();
+    act('bookmarkSave', { bt: b.t, tags: b.tags });
+    closeSheet();
+    hint(`${c.dataset.tag} bookmarked at ${fmtT(b.t)}`, 1800);
+  };
+  $('bmBtn').onclick = openBookmarks;
+  $('bmAddHere').onclick = () => addBookmarkNow(true);
+  $('bmTags').onclick = e => {
+    const c = e.target.closest('.chip'); if (!c || !bmEditing) return;
+    const t = c.dataset.tag, i = bmEditing.tags.indexOf(t);
+    if (i >= 0) bmEditing.tags.splice(i, 1); else bmEditing.tags.push(t);
+    saveBookmarks(); renderBmTags();
+  };
+  function addCustomTag() {
+    const t = $('bmNewTag').value.trim().replace(/\s+/g, ' ');
+    if (!t) return;
+    const known = allTags().find(x => x.toLowerCase() === t.toLowerCase());
+    const tag = known || t;
+    if (!known) { prefs.customTags = (prefs.customTags || []).concat(tag); savePrefs(); }
+    if (bmEditing && !bmEditing.tags.includes(tag)) { bmEditing.tags.push(tag); saveBookmarks(); }
+    $('bmNewTag').value = '';
+    renderBmTags();
+  }
+  $('bmNewTagBtn').onclick = addCustomTag;
+  $('bmNewTag').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); addCustomTag(); } });
+  $('bmNote').addEventListener('keydown', e => e.stopPropagation());
+  $('bmNote').addEventListener('input', () => { if (bmEditing) { bmEditing.note = $('bmNote').value.trim(); saveBookmarks(); } });
+  $('bmSave').onclick = () => {
+    if (!bmEditing) return;
+    bmEditing.note = $('bmNote').value.trim();
+    act('bookmarkSave', { bt: bmEditing.t, tags: bmEditing.tags });
+    saveBookmarks(); showBmList();
+  };
+  $('bmDelete').onclick = () => {
+    if (!bmEditing) return;
+    bookmarks = bookmarks.filter(b => b !== bmEditing);
+    saveBookmarks(); showBmList();
+  };
+  $('bmFilter').onclick = e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    bmFilter = c.dataset.tag || null;
+    renderMarks(); showBmList();
+  };
+  $('bmItems').onclick = e => {
+    const go = e.target.closest('[data-go]'), ed = e.target.closest('[data-edit]');
+    if (go) {
+      const b = bookmarks.find(x => x.id === go.dataset.go);
+      if (b) { video.pause(); video.currentTime = b.t; act('seek', { bookmark: b.id }); closeSheet(); }
+    } else if (ed) {
+      const b = bookmarks.find(x => x.id === ed.dataset.edit);
+      if (b) editBookmark(b);
+    }
+  };
+  function jumpBookmark(dir) {
+    const list = bookmarks.filter(b => !bmFilter || b.tags.includes(bmFilter));
+    const t = video.currentTime;
+    const b = dir > 0 ? list.find(x => x.t > t + 0.01) : list.slice().reverse().find(x => x.t < t - 0.01);
+    if (b) { video.pause(); video.currentTime = b.t; act('seek', { bookmark: b.id }); }
+  }
+
+  // ---------------------------------------------------------------- keyboard (laptop)
+  const TOOL_KEYS = { p: 'pen', l: 'line', a: 'arrow', c: 'circle', g: 'angle', t: 'text', m: 'timer' };
+  document.addEventListener('keydown', e => {
+    if (!video.src || $('app').hidden || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.id !== 'scrub') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('undo').click(); }
+    else if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); $('play').click(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+    else if (!e.ctrlKey && !e.metaKey && !e.altKey && ['1', '2', '5'].includes(e.key)) {
+      // 1 = normal speed; 2 / 5 = 2× / 5× (press again to go back to 1×)
+      const v = +e.key;
+      setSpeed(v !== 1 && video.playbackRate === v ? 1 : v);
+    }
+    else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'b') addBookmarkNow(true);
+    else if (e.key === '[' || e.key === ']') jumpBookmark(e.key === ']' ? 1 : -1);
+    else if (!e.ctrlKey && !e.metaKey && !e.altKey && TOOL_KEYS[e.key.toLowerCase()]) selectTool(TOOL_KEYS[e.key.toLowerCase()]);
+  });
+
+  // ---------------------------------------------------------------- screen wake lock
+  // If the system refuses the wake lock (iPhone in Low Power Mode, for example), a tiny silent
+  // video playing in a loop keeps the screen from going to sleep during the recording.
+  let awakeVideo = null;
+  function startAwakeVideo() {
+    try {
+      if (!awakeVideo) {
+        awakeVideo = document.createElement('video');
+        awakeVideo.setAttribute('playsinline', ''); awakeVideo.muted = true; awakeVideo.loop = true;
+        awakeVideo.src = awakeVideo.canPlayType('video/mp4; codecs="avc1.42E01E"') ? 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAANMbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAnZ0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAEAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAHubWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAoAAAAKABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABmW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAVlzdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAL2F2Y0MBQsAK/+EAF2dCwArZBCbARAAAAwAEAAADAFA8SJkgAQAFaMuDxMgAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAXuAAAF7gAAAAYc3R0cwAAAAAAAAABAAAACgAABAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAACgAAAAEAAAA8c3RzegAAAAAAAAAAAAAACgAAApMAAAALAAAADAAAAAsAAAALAAAACwAAAAsAAAALAAAACwAAAAsAAAAUc3RjbwAAAAAAAAABAAADfAAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAAL/bWRhdAAAAnMGBf//b9xF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0zIGRlYmxvY2s9MTotMzotMyBhbmFseXNlPTB4MToweDExMSBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9Mi4wMDowLjcwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tNCB0aHJlYWRzPTIgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0wIHdlaWdodHA9MCBrZXlpbnQ9MjUwIGtleWludF9taW49MTAgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjIwAIAAAAAYZYiEBLOcmKAAOKMnJyddddddddddddeAAAAAB0GaOAlnOEYAAAAIQZpUAlnOEYAAAAAHQZpgEs5wjAAAAAdBmoASznCMAAAAB0GaoBLOcIwAAAAHQZrAEs5wjAAAAAdBmuASznCMAAAAB0GbABHOcIwAAAAHQZsgEM5wjA==' : 'data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAALCEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggKs7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECPQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYgj7XI8U/GXCZyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhAX14QDgibCBQLqBQJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYgj7XI8U/GXCWfIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDEuMDAwMDAwMDAwAB9DtnVBB+eBAKOqgQAAgPACAJ0BKkAAQAAARwiFhYiFhIgCAgAGcDxCYAqyIPcwAP7/q1CAo5aBAGQA0QEAARAQABgAGFgv9AAIjoAAo5aBAMgA0QEAARAQABgAGFgv9AAIjoAAo5aBASwA0QEAARAQABgAGFgv9AAIjoAAo5aBAZAA0QEAARAQABgAGFgv9AAIjoAAo5aBAfQA0QEAARAQABgAGFgv9AAIjoAAo5aBAlgA0QEAARAQABgAGFgv9AAIjoAAo5aBArwA0QEAARAQFGAAYWC/0AAiOgAAo5aBAyAA0QEAARAQABgAGFgv9AAIjoAAo5aBA4QA0QEAARAQABgAGFgv9AAIjoAAHFO7a5G7j7OBALeK94EB8YIBn/CBAw==';
+        awakeVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0';
+        document.body.appendChild(awakeVideo);
+      }
+      awakeVideo.play().then(() => log('Keep-awake video playing (fallback)')).catch(e => log('Keep-awake video refused: ' + errMsg(e), 'w'));
+    } catch (e) {}
+  }
+  async function keepAwake() {
+    if (!('wakeLock' in navigator)) { log('Wake Lock not supported: keep-awake video used instead', 'w'); startAwakeVideo(); return; }
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      log('Screen wake lock on');
+      wakeLock.addEventListener('release', () => log('Screen wake lock released'));
+    } catch (e) { log('Wake lock refused: ' + errMsg(e) + ' → keep-awake video instead', 'w'); startAwakeVideo(); }
+  }
+  function releaseAwake() {
+    try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
+    try { if (awakeVideo) awakeVideo.pause(); } catch (e) {}
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    log(`Page ${document.visibilityState}${recState !== 'idle' ? ` (recorder: ${recorder && recorder.state})` : ''}`, recState !== 'idle' && document.hidden ? 'w' : 'i');
+    if (document.hidden && recState === 'recording') {
+      autoPaused = true;
+      $('recPause').click();
+      log('Recording paused automatically: the app went to the background', 'w');
+    }
+    if (document.visibilityState === 'visible' && (recState === 'recording' || recState === 'paused')) {
+      if (!wakeLock) keepAwake();
+      if (autoPaused && recState === 'paused') {
+        $('stall').textContent = 'Recording paused while the app was in the background. Tap ● to resume.';
+        $('stall').style.display = 'block';
+      }
+      if (recorder && recorder.state === 'inactive') {
+        log('Recorder stopped while the app was in the background: saving what was recorded', 'w');
+        finishRecording(true);
+      }
+    }
+  });
+  window.addEventListener('pagehide', () => { if (recState !== 'idle') { log('pagehide during recording', 'w'); saveMeta(); } });
+
+  // ---------------------------------------------------------------- recording
+  // Stopping ends the recording for good, so it takes two taps: the first one asks to confirm.
+  let stopArmed = null, autoPaused = false;
+  // First tap on stop pauses the recording (and the video); a second tap stops and exports.
+  $('rec').onclick = () => {
+    if (recState !== 'recording' && recState !== 'paused') { startRecording(); return; }
+    if (stopArmed) { stopArmed = null; $('rec').classList.remove('confirm'); hint(''); stopRecording(); return; }
+    if (recState === 'recording') $('recPause').click();
+    stopArmed = true;
+    $('rec').classList.add('confirm');
+    hint('Recording paused · tap ■ again to stop and export, or ● to resume', 4000);
+  };
+  $('recPause').onclick = () => {
+    if (!recorder) return;
+    if (recState === 'recording') {
+      try { recorder.pause(); } catch (e) { log('pause() failed: ' + errMsg(e), 'w'); return; }
+      recState = 'paused'; recPausedAt = performance.now();
+      videoPlayingAtRecPause = !video.paused;
+      if (videoPlayingAtRecPause) video.pause();             // Scott: pausing the recording pauses the video too
+      act('recPause');
+      setIcon($('recPause'), 'recDot'); $('recPause').setAttribute('aria-label', 'Resume recording'); $('recPause').classList.add('paused');
+      hint('Recording paused · tap ● to resume', 3000);
+      $('recBadge').classList.add('paused');
+    } else if (recState === 'paused') {
+      try { recorder.resume(); } catch (e) { log('resume() failed: ' + errMsg(e), 'w'); return; }
+      recPausedTotal += performance.now() - recPausedAt;
+      recState = 'recording';
+      if (stopArmed) { stopArmed = null; $('rec').classList.remove('confirm'); }
+      lastDataAt = performance.now();   // no data is expected while paused
+      act('recResume');
+      video.play().catch(e => log('Could not play the video on resume: ' + errMsg(e), 'w'));   // Scott: resuming plays the video again
+      setIcon($('recPause'), 'pauseFill'); $('recPause').setAttribute('aria-label', 'Pause recording'); $('recPause').classList.remove('paused');
+      if (autoPaused) { autoPaused = false; $('stall').style.display = 'none'; }
+      $('recBadge').classList.remove('paused');
+    }
+  };
+
+  function saveMeta(extra) {
+    if (!sessionId) return Promise.resolve();
+    return setMeta('session', Object.assign({
+      id: sessionId, state: recState === 'idle' ? 'stopped' : 'recording',
+      mime: recorder && recorder.mimeType || pickType(), chunkCount, bytes: recBytes, segments: segIndex + 1,
+      durationMs: Math.round(recElapsed()), width: view.width, height: view.height, version: VERSION
+    }, extra || {})).then(() => setMeta('actions', { list: actions })).catch(e => log('Could not save session info: ' + errMsg(e), 'w'));
+  }
+
+  // Match sound (optional): the video's own sound is mixed under the voice, at a lower volume.
+  // It is not played on the speakers while recording, so the microphone does not pick it up twice.
+  let actx = null, vidSrc = null, vidGain = null, micNode = null;
+  function prepareAudioContext() {               // must run during the tap on REC (iOS)
+    if (!prefs.matchAudio) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+    } catch (e) { log('Audio mixing unavailable: ' + errMsg(e), 'w'); actx = null; }
+  }
+  function mixedAudioTrack(mic) {
+    if (!actx) return null;
+    try {
+      if (!vidSrc) {
+        vidSrc = actx.createMediaElementSource(video);
+        vidGain = actx.createGain(); vidGain.gain.value = 0.35;
+        vidSrc.connect(vidGain);
+      }
+      const dest = actx.createMediaStreamDestination();
+      try { vidGain.disconnect(); } catch (e) {}
+      vidGain.connect(dest);
+      if (micNode) { try { micNode.disconnect(); } catch (e) {} }
+      micNode = actx.createMediaStreamSource(mic);
+      micNode.connect(dest);
+      video.muted = false;                       // its sound now only goes into the recording
+      log('Match sound mixed under the voice (35%)');
+      return dest.stream.getAudioTracks()[0];
+    } catch (e) { log('Could not mix the match sound, voice only: ' + errMsg(e), 'w'); return null; }
+  }
+
+  // A recording is made of one or more segments. If the phone stops delivering data (Safari
+  // can freeze the recorder after reloading a big video), a fresh recorder takes over as a new
+  // segment; the segments are joined back into one video at export.
+  let segIndex = 0, segRestarts = 0, kickedAt = 0, recStream = null;
+  function makeStream() {
+    const stream = view.captureStream(RENDER_FPS);
+    const mixed = prefs.matchAudio ? mixedAudioTrack(micStream) : null;
+    if (mixed) stream.addTrack(mixed); else micStream.getAudioTracks().forEach(t => stream.addTrack(t));
+    return stream;
+  }
+  function startSegment() {
+    const stream = makeStream();
+    const type = pickType();
+    let rec;
+    try {
+      rec = new MediaRecorder(stream, Object.assign(type ? { mimeType: type } : {}, { videoBitsPerSecond: videoBps(), audioBitsPerSecond: 128000, videoKeyFrameIntervalDuration: 1000 }));
+    } catch (e) {
+      log('MediaRecorder options refused (' + errMsg(e) + '), using defaults', 'w');
+      rec = new MediaRecorder(stream);
+    }
+    const seg = segIndex;
+    rec.ondataavailable = e => {
+      const nowT = performance.now();
+      if (!e.data || !e.data.size) { if (rec === recorder) emptyChunks++; return; }   // empty data does not count as recording
+      if (rec === recorder) {
+        if (recState === 'recording') maxGap = Math.max(maxGap, nowT - lastDataAt);
+        lastDataAt = nowT;
+        if (stallWarned) { stallWarned = false; kickedAt = 0; $('stall').style.display = 'none'; log('Recording data is flowing again'); }
+      }
+      const i = chunkCount++;
+      const blob = e.data;
+      recBytes += blob.size;
+      // Save every chunk to the phone's storage as soon as it arrives, in order.
+      writeChain = writeChain.then(() => putBlobRecord('chunks', { i, seg, blob })).catch(err => {
+        writeErrors++;
+        log(`Could not save chunk ${i}: ${errMsg(err)}`, 'e');
+      });
+    };
+    rec.onerror = e => log('Recorder error: ' + errMsg(e.error || e), 'e');
+    rec.onstop = () => {
+      if (rec !== recorder) { log(`Segment ${seg + 1} closed`); return; }
+      log(`Recorder stopped (${stopRequested ? 'by user' : 'unexpectedly'})`, stopRequested ? 'i' : 'w');
+      finishRecording(!stopRequested);
+    };
+    recorder = rec; recStream = stream;
+    rec.start(1000);
+    return rec;
+  }
+  function logTracks() {
+    try {
+      const t = recStream ? recStream.getTracks() : [];
+      log('Tracks: ' + t.map(x => `${x.kind} ${x.readyState}${x.muted ? ' muted' : ''}${x.enabled ? '' : ' disabled'}`).join(' · ') + ` · recorder ${recorder && recorder.state} · video readyState ${video.readyState}`, 'w');
+    } catch (e) {}
+  }
+  function restartSegment() {
+    const old = recorder;
+    segIndex++; segRestarts++;
+    log(`Starting a new recording segment (#${segIndex + 1}) to get past the stall`, 'w');
+    act('segment', { n: segIndex + 1 });
+    const oldVideo = recStream ? recStream.getVideoTracks() : [];
+    try { if (old && old.state !== 'inactive') old.stop(); } catch (e) {}
+    startSegment();
+    oldVideo.forEach(t => { try { t.stop(); } catch (e) {} });   // the old picture track only, never the microphone
+    lastDataAt = performance.now(); kickedAt = 0;
+    saveMeta();
+  }
+
+  if (params.has('test')) window.__sr = { restartSegment: () => restartSegment(), closeDB: async () => (await openDB()).close() };   // automated tests only
+  async function startRecording() {
+    if (!view.captureStream || !window.MediaRecorder) { alert('This browser cannot record video from the page.'); return; }
+    prepareAudioContext();
+    const prev = await getMeta('session').catch(() => null);
+    if (prev && prev.state !== 'shared' && !confirm('Starting a new recording will delete the previous one. Continue?')) return;
+
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch (e) {
+      alert('Microphone access is needed to record your voice.\n' + errMsg(e));
+      log('Microphone refused: ' + errMsg(e), 'e');
+      return;
+    }
+    micStream.getAudioTracks().forEach(t => {
+      t.addEventListener('ended', () => { log('Microphone track ended', 'e'); if (recState === 'recording') hint('The iPhone stopped the microphone: your voice is no longer recorded.', 6000); });
+      // iOS pauses the microphone during a call, Siri or a system alert (e.g. low battery):
+      // say when it happens and when it comes back, so a silent part never goes unnoticed.
+      let mutedAt = 0, muteTimer = null;
+      t.addEventListener('mute', () => {
+        mutedAt = performance.now(); log('Microphone paused by the system', 'w');
+        clearTimeout(muteTimer);
+        muteTimer = setTimeout(() => { if (t.muted && recState === 'recording') hint('The iPhone paused the microphone: your voice is not recorded right now.', 6000); }, 3000);
+      });
+      t.addEventListener('unmute', () => {
+        clearTimeout(muteTimer);
+        log(`Microphone back after ${mutedAt ? ((performance.now() - mutedAt) / 1000).toFixed(1) : '?'} s`);
+        if (recState === 'recording' && mutedAt && performance.now() - mutedAt > 3000) hint('Microphone back: your voice is recorded again.', 3000);
+        mutedAt = 0;
+      });
+    });
+
+    try { if (navigator.storage && navigator.storage.persist) log('Persistent storage: ' + await navigator.storage.persist()); } catch (e) {}
+    const st = await storageInfo();
+    log('Storage: ' + st.text);
+    if (st.quota && st.quota - st.usage < 3 * 1024 * MB) log('Less than 3 GB available for the app: long recordings may not fit', 'w');
+
+    await Promise.all([clearStore('chunks'), clearStore('out'), removeOpfsFile(), ...['session', 'actions', 'export'].map(delMeta)]).catch(e => log('Clear storage failed: ' + errMsg(e), 'w'));
+    hideResult(); hideBanner(); closeSheet(); lastStored = null; $('exportBtn').disabled = true;
+    rawBlob = null;
+
+    sessionId = Date.now().toString(36);
+    chunkCount = 0; recBytes = 0; writeErrors = 0; writeChain = Promise.resolve(); stopRequested = false;
+    actions = [];
+    lastDataAt = performance.now(); maxGap = 0; stallWarned = false; emptyChunks = 0;
+    segIndex = 0; segRestarts = 0; kickedAt = 0;
+    startSegment();
+    // Safari may hold the video in memory instead of giving it back every second: ask for it explicitly.
+    flushTimer = setInterval(() => {
+      if (recorder && recorder.state === 'recording') { try { recorder.requestData(); } catch (e) {} }
+    }, 2000);
+    recState = 'recording';
+    recStart = performance.now(); recPausedTotal = 0; recTrouble = 0; $('qualityWarn').hidden = true;
+    act('recStart', { fps, w: view.width, h: view.height });
+    log(`Recording started · ${recorder.mimeType || type || 'default format'} · ${view.width}×${view.height} @${RENDER_FPS}fps · ${(videoBps() / 1e6).toFixed(1)} Mbps`);
+    keepAwake();
+    saveMeta();
+
+    $('rec').setAttribute('aria-label', 'Stop recording and export');
+    $('rec').classList.add('recording');
+    $('recPause').disabled = false; $('recPause').hidden = false; setIcon($('recPause'), 'pauseFill');
+    $('recBadge').style.display = 'block'; $('recBadge').classList.remove('paused');
+    $('homeBtn').disabled = true;
+    $('quality').disabled = true;
+    recTimer = setInterval(() => {
+      $('recBadge').textContent = `${recState === 'paused' ? '❚❚ PAUSED' : '● REC'} ${fmtRec(recElapsed())}`;
+    }, 250);
+    metaTimer = setInterval(async () => {
+      saveMeta();
+      const gap = performance.now() - lastDataAt;
+      if (recState === 'recording' && gap > 6000) {
+        if (!stallWarned) {
+          stallWarned = true;
+          recTrouble++;
+          log(`No recording data for ${(gap / 1000).toFixed(0)} s (recorder: ${recorder && recorder.state})`, 'e');
+          logTracks();
+          $('stall').textContent = '⚠︎ The phone stopped delivering the recording. Restarting it… you can keep going.';
+          $('stall').style.display = 'block';
+          try { recorder.pause(); recorder.resume(); log('Tried to wake the recorder up (pause/resume)', 'w'); } catch (e) {}
+          kickedAt = performance.now();
+        } else if (kickedAt && performance.now() - kickedAt > 4000 && segRestarts < 30) {
+          restartSegment();
+        }
+      }
+      const st2 = await storageInfo();
+      log(`rec ${fmtRec(recElapsed())} · ${chunkCount} chunks · ${mbs(recBytes)} · longest gap ${(maxGap / 1000).toFixed(1)} s · last data ${((performance.now() - lastDataAt) / 1000).toFixed(0)} s ago · empty ${emptyChunks} · ${recorder && recorder.state} · ${st2.text}${writeErrors ? ' · write errors: ' + writeErrors : ''}`);
+      maxGap = 0;
+    }, 5000);
+  }
+
+  function stopRecording() {
+    if (!recorder || recorder.state === 'inactive') return finishRecording(false);
+    stopRequested = true;
+    act('recStop');
+    $('rec').disabled = true;
+    try { recorder.stop(); } catch (e) { log('stop() failed: ' + errMsg(e), 'e'); finishRecording(true); }
+  }
+
+  let finishing = false;
+  async function finishRecording(unexpected) {
+    if (finishing || recState === 'idle') return;
+    finishing = true;
+    const durationMs = recElapsed();
+    recState = 'finishing';
+    clearInterval(recTimer); clearInterval(metaTimer); clearInterval(flushTimer);
+    $('stall').style.display = 'none';
+    releaseAwake();
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (micNode) { try { micNode.disconnect(); } catch (e) {} micNode = null; }
+    $('rec').setAttribute('aria-label', 'Start recording');
+    $('rec').classList.remove('recording');
+    $('recBadge').style.display = 'none';
+    $('recPause').disabled = true; $('recPause').hidden = true; $('recPause').classList.remove('paused');
+    $('homeBtn').disabled = false;
+    $('quality').disabled = false;
+
+    await writeChain;                      // wait for the last chunks to be on disk
+    recState = 'idle';
+    await saveMeta({ state: 'stopped', durationMs: Math.round(durationMs) });
+    setTimeout(() => setMeta('reclog', { lines: logLines.slice(-1500), at: new Date().toISOString() }).catch(() => {}), 0);
+    log(`Recording finished: ${fmtRec(durationMs)} · ${chunkCount} chunks · ${mbs(recBytes)}${writeErrors ? ' · ' + writeErrors + ' chunk(s) not saved' : ''}`);
+    if (unexpected) alert('The recording was interrupted. Everything recorded up to that point has been kept.');
+    $('rec').disabled = false;
+    enableEditing(true);
+    finishing = false;
+    await finalizeFromStorage(durationMs);
+  }
+
+  // ---------------------------------------------------------------- export: rebuild a standard MP4
+  // Writes the converted file in 4 MB parts to storage, so a 2 GB export never sits in memory.
+  class SpillWriter {
+    constructor() { this.cap = 4 * MB; this.buf = new Uint8Array(this.cap); this.bufStart = 0; this.bufLen = 0; this.end = 0; this.patches = []; this.idx = 0; }
+    async write(data, pos) {
+      const n = data.length;
+      if (pos > this.end) await this.append(new Uint8Array(pos - this.end));
+      const ovEnd = Math.min(pos + n, this.end);
+      if (pos < ovEnd) {                                  // overwrite of bytes already written
+        const flushedEnd = Math.min(ovEnd, this.bufStart);
+        if (pos < flushedEnd) this.patches.push({ pos, bytes: data.slice(0, flushedEnd - pos) });
+        const from = Math.max(pos, this.bufStart);
+        if (from < ovEnd) this.buf.set(data.subarray(from - pos, ovEnd - pos), from - this.bufStart);
+      }
+      if (pos + n > this.end) await this.append(data.subarray(this.end - pos));
+    }
+    async append(d) {
+      let off = 0;
+      while (off < d.length) {
+        const k = Math.min(this.cap - this.bufLen, d.length - off);
+        this.buf.set(d.subarray(off, off + k), this.bufLen);
+        this.bufLen += k; off += k; this.end += k;
+        if (this.bufLen === this.cap) await this.flush();
+      }
+    }
+    async flush() {
+      if (!this.bufLen) return;
+      const blob = new Blob([this.buf.slice(0, this.bufLen)]);
+      await putBlobRecord('out', { i: this.idx++, start: this.bufStart, size: this.bufLen, blob });
+      this.bufStart += this.bufLen; this.bufLen = 0;
+    }
+  }
+
+  // The finished video as ONE file on the phone's disk (Origin Private File System), written
+  // part by part in a background worker. iOS could not read the ~250-part video to share it
+  // ("error while reading files"); a single plain file is what the share sheet expects.
+  // Reading every part here also checks that the saved video is intact.
+  const OPFS_NAME = 'sr-export.mp4';
+  const OPFS_WORKER = `onmessage = async e => {
+    const { name, parts } = e.data; let k = 0;
+    try {
+      const root = await navigator.storage.getDirectory();
+      const fh = await root.getFileHandle(name, { create: true });
+      const h = await fh.createSyncAccessHandle();
+      h.truncate(0);
+      let at = 0;
+      for (k = 0; k < parts.length; k++) {
+        const p = parts[k];
+        const u = new Uint8Array(await p.blob.arrayBuffer());
+        for (const q of p.patches) u.set(q.bytes, q.off);
+        let w = 0;
+        while (w < u.length) {
+          const n = h.write(u.subarray(w), { at: at + w });
+          if (!n) throw new Error('QuotaExceededError: the phone refused more data (storage full?) at ' + Math.round((at + w) / 1048576) + ' MB');
+          w += n;
+        }
+        at += u.length;
+        if (k % 6 === 0) postMessage({ progress: (k + 1) / parts.length });
+      }
+      postMessage({ closing: true });
+      h.flush(); h.close();
+      postMessage({ done: true, size: at });
+    } catch (err) { postMessage({ error: (err && err.name ? err.name + ': ' + err.message : String(err)), part: k }); }
+  };`;
+  async function removeOpfsFile() {
+    try { const root = await navigator.storage.getDirectory(); await root.removeEntry(OPFS_NAME); } catch (e) {}
+  }
+  async function writeOpfsFile(recs, patches, type, onProgress) {
+    if (!navigator.storage || !navigator.storage.getDirectory || !window.Worker) throw new Error('not supported by this browser');
+    const total = recs.reduce((n, r) => n + r.size, 0);
+    const parts = recs.map(r => {
+      const s = r.start, e = r.start + r.size, ps = [];
+      for (const p of (patches || [])) {
+        if (!(p.pos < e && p.pos + p.bytes.length > s)) continue;
+        const a = Math.max(p.pos, s), z = Math.min(p.pos + p.bytes.length, e);
+        ps.push({ off: a - s, bytes: p.bytes.slice(a - p.pos, z - p.pos) });
+      }
+      return { blob: asBlob(r.blob), patches: ps };
+    });
+    const st = await storageInfo();
+    log(`Writing the video as one file: ${mbs(total)} · ${st.text}`);
+    if (st.quota && st.quota - st.usage < total * 1.02) log(`Probably not enough room for the file: ${mbs(st.quota - st.usage)} free for ${mbs(total)}`, 'w');
+    if (!wakeLock) keepAwake();   // keep the screen on while the file is written (iOS may pause a sleeping page)
+    const url = URL.createObjectURL(new Blob([OPFS_WORKER], { type: 'text/javascript' }));
+    const w = new Worker(url);
+    const t = performance.now();
+    let watchdog = null;
+    try {
+      const res = await new Promise((ok, ko) => {
+        let last = 0, quarter = 0;
+        const arm = () => { clearTimeout(watchdog); watchdog = setTimeout(() => ko(new Error(`no progress for 30 s at ${Math.round(last * 100)}%`)), 30000); };
+        arm();
+        w.onmessage = e => {
+          const d = e.data;
+          if (d.progress != null) {
+            last = d.progress; arm();
+            if (onProgress) onProgress(d.progress);
+            while (quarter < 3 && d.progress >= (quarter + 1) / 4) { quarter++; log(`File writing: ${quarter * 25}% after ${((performance.now() - t) / 1000).toFixed(1)} s`); }
+          }
+          else if (d.closing) {   // the phone finishes writing to disk: this can take a while for a big file
+            log(`File writing: closing the file after ${((performance.now() - t) / 1000).toFixed(1)} s`);
+            clearTimeout(watchdog); watchdog = setTimeout(() => ko(new Error('closing the file took more than 3 min')), 180000);
+          }
+          else if (d.done) ok(d);
+          else ko(new Error(`${d.error} (part ${d.part + 1} of ${parts.length})`));
+        };
+        w.onerror = e => ko(new Error(e.message || 'worker error'));
+        w.postMessage({ name: OPFS_NAME, parts });
+      });
+      if (res.size !== total) throw new Error(`size ${res.size} instead of ${total}`);
+    } catch (e) { removeOpfsFile(); throw e; }
+    finally { clearTimeout(watchdog); w.terminate(); URL.revokeObjectURL(url); if (recState === 'idle') releaseAwake(); }
+    // Check the file on disk before using it: right size, and its last bytes equal the video's.
+    const root = await navigator.storage.getDirectory();
+    let f = null;
+    for (let i = 0; i < 4; i++) {
+      f = await (await root.getFileHandle(OPFS_NAME)).getFile();
+      if (f.size === total) break;
+      log(`Video file reads ${mbs(f.size)} instead of ${mbs(total)}, checking again`, 'w');
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    if (!f || f.size !== total) throw new Error(`the written file is ${mbs(f ? f.size : 0)} instead of ${mbs(total)}`);
+    const lastRec = recs[recs.length - 1], n = Math.min(4096, lastRec.size);
+    const want = new Uint8Array(await asBlob(lastRec.blob).slice(lastRec.size - n).arrayBuffer());
+    const got = new Uint8Array(await f.slice(total - n).arrayBuffer());
+    for (const p of (patches || [])) for (let j = 0; j < p.bytes.length; j++) { const k = p.pos + j - (total - n); if (k >= 0 && k < n) want[k] = p.bytes[j]; }
+    if (want.some((b, k) => b !== got[k])) throw new Error('the end of the written file does not match the video');
+    log(`Video file written to the phone and checked: ${mbs(f.size)} in ${((performance.now() - t) / 1000).toFixed(1)} s (all ${parts.length} parts readable)`);
+    // The converted parts are kept too, as a safety copy, until the next recording or a delete.
+    const exp = await getMeta('export').catch(() => null);
+    await setMeta('export', Object.assign({}, exp || {}, { opfs: true, size: f.size, type }));
+    return new File([f], fileName(type), { type });
+  }
+  async function readOpfsFile(exp) {
+    const root = await navigator.storage.getDirectory();
+    const f = await (await root.getFileHandle(OPFS_NAME)).getFile();
+    if (!f.size || (exp && exp.size && f.size !== exp.size)) throw new Error(`file is ${mbs(f.size)} instead of ${mbs(exp && exp.size || 0)}`);
+    const type = (exp && exp.type) || 'video/mp4';
+    return new File([f], fileName(type), { type });
+  }
+  // Once converted, the raw recording is no longer needed: free its space before the file is
+  // written (a 25-min recording needs ~1.2 GB per copy) and make the video reachable from the
+  // home screen even if the next step is interrupted.
+  async function markConverted() {
+    const session = await getMeta('session').catch(() => null);
+    await setMeta('session', Object.assign({}, session || {}, { state: 'exported' }));
+    await clearStore('chunks').catch(() => {});
+    rawBlob = null;
+    lastStored = makeLastStored(Object.assign({}, session || {}, { state: 'exported' }));
+    $('exportBtn').disabled = false;
+  }
+  function makeLastStored(session) {
+    return async () => {
+      showResult('Preparing video…');
+      const exp = await getMeta('export').catch(() => null);
+      if (exp && exp.opfs) {
+        try { setResultFile(await readOpfsFile(exp), session.durationMs, 'standard MP4 (restored)'); return; }
+        catch (e) { log('Saved video file unreadable: ' + errMsg(e), 'e'); }
+      }
+      const parts = await getAll('out').catch(() => []);
+      if (!parts.length) { showResult('⚠︎ The last video is no longer on the phone.'); log('Restore: no saved video found', 'e'); return; }
+      try { setResultFile(await assembleOutput(exp && exp.patches, 'video/mp4', fileProgress), session.durationMs, 'standard MP4 (restored)'); }
+      catch (e) { showResult('⚠︎ Could not reopen the last video: ' + errMsg(e)); log('Restore failed: ' + errMsg(e), 'e'); }
+    };
+  }
+  let partsOnly = false;
+  async function assembleOutput(patches, type, onProgress) {
+    partsOnly = false;
+    const recs = (await getAll('out')).sort((a, b) => a.i - b.i);
+    if (!recs.length) throw new Error('the converted video is no longer on the phone');
+    try { return await writeOpfsFile(recs, patches, type, onProgress); }
+    catch (e) { log('Single video file not possible, using the parts: ' + errMsg(e), 'w'); partsOnly = true; }
+    const pieces = [];
+    for (const r of recs) {
+      const s = r.start, e = r.start + r.size;
+      const hits = (patches || []).filter(p => p.pos < e && p.pos + p.bytes.length > s);
+      const b = asBlob(r.blob);
+      if (!hits.length) { pieces.push(b); continue; }
+      const u = new Uint8Array(await b.arrayBuffer());   // one 4 MB part in memory, briefly
+      for (const p of hits) {
+        const a = Math.max(p.pos, s), z = Math.min(p.pos + p.bytes.length, e);
+        u.set(p.bytes.subarray(a - p.pos, z - p.pos), a - s);
+      }
+      pieces.push(new Blob([u]));
+    }
+    return new Blob(pieces, { type });
+  }
+
+  let mediabunny = null;
+  async function loadMediabunny() {
+    if (!mediabunny) {
+      const t = performance.now();
+      try { mediabunny = await import('./mediabunny.min.mjs'); }       // bundled copy: works offline
+      catch (e) { log('Local conversion library unavailable (' + errMsg(e) + '), using CDN', 'w'); mediabunny = await import('https://cdn.jsdelivr.net/npm/mediabunny@1/+esm'); }
+      log(`Conversion library loaded in ${((performance.now() - t) / 1000).toFixed(1)} s`);
+    }
+    return mediabunny;
+  }
+
+  async function toStandardMp4(raw, onProgress) {
+    const { Input, Output, Conversion, ALL_FORMATS, BlobSource, StreamTarget, Mp4OutputFormat } = await loadMediabunny();
+    await clearStore('out'); await removeOpfsFile();
+    const writer = new SpillWriter();
+    const writable = new WritableStream({ write: chunk => writer.write(chunk.data, chunk.position) });
+    const input = new Input({ source: new BlobSource(raw), formats: ALL_FORMATS });
+    const output = new Output({
+      format: new Mp4OutputFormat({ fastStart: false }),
+      target: new StreamTarget(writable, { chunked: true, chunkSize: 4 * MB })
+    });
+    const conversion = await Conversion.init({ input, output });
+    if (conversion.discardedTracks && conversion.discardedTracks.length) {
+      log('Tracks dropped by conversion: ' + conversion.discardedTracks.map(d => `${d.track.type} (${d.reason})`).join(', '), 'w');
+    }
+    if (!conversion.isValid) throw new Error('This recording cannot be converted on this device');
+    conversion.onProgress = onProgress;
+    await conversion.execute();
+    await writer.flush();
+    log(`Converted file: ${mbs(writer.end)} in ${writer.idx} parts, ${writer.patches.length} header patch(es)`);
+    await setMeta('export', { patches: writer.patches, size: writer.end, type: 'video/mp4' });
+    await markConverted();
+    return assembleOutput(writer.patches, 'video/mp4', fileProgress);
+  }
+
+  // Joins several recorded segments into one video, copying the compressed data (no re-encoding).
+  async function joinSegments(blobs, onProgress) {
+    const { Input, Output, ALL_FORMATS, BlobSource, StreamTarget, Mp4OutputFormat, WebMOutputFormat, EncodedPacketSink, EncodedVideoPacketSource, EncodedAudioPacketSource } = await loadMediabunny();
+    const segs = [];
+    for (let k = 0; k < blobs.length; k++) {
+      try {
+        const input = new Input({ source: new BlobSource(blobs[k]), formats: ALL_FORMATS });
+        const v = await input.getPrimaryVideoTrack(), a = await input.getPrimaryAudioTrack();
+        if (v) segs.push({ v, a, k }); else log(`Segment ${k + 1}: no picture, skipped`, 'w');
+      } catch (e) { log(`Segment ${k + 1} unreadable, skipped: ${errMsg(e)}`, 'w'); }
+    }
+    if (!segs.length) throw new Error('no readable segment');
+    const vCodec = segs[0].v.codec, aCodec = segs[0].a ? segs[0].a.codec : null;
+    const mp4 = ['avc', 'hevc', 'av1', 'vp9'].includes(vCodec) && (!aCodec || ['aac', 'opus', 'mp3'].includes(aCodec));
+    await clearStore('out'); await removeOpfsFile();
+    const writer = new SpillWriter();
+    const writable = new WritableStream({ write: chunk => writer.write(chunk.data, chunk.position) });
+    const output = new Output({
+      format: mp4 ? new Mp4OutputFormat({ fastStart: false }) : new WebMOutputFormat(),
+      target: new StreamTarget(writable, { chunked: true, chunkSize: 4 * MB })
+    });
+    const vs = new EncodedVideoPacketSource(vCodec); output.addVideoTrack(vs);
+    let as = null;
+    if (aCodec) { as = new EncodedAudioPacketSource(aCodec); output.addAudioTrack(as); }
+    await output.start();
+    let offset = 0, firstV = true, firstA = true, firstDesc = null, joined = 0, lastV = -1, lastA = -1, fixes = 0;
+    for (let n = 0; n < segs.length; n++) {
+      const { v, a, k } = segs[n];
+      if (v.codec !== vCodec) { log(`Segment ${k + 1}: different video format, skipped`, 'w'); continue; }
+      const vCfg = await v.getDecoderConfig();
+      const aCfg = a && as && a.codec === aCodec ? await a.getDecoderConfig() : null;
+      const d = vCfg && vCfg.description;
+      const desc = d ? Array.from(d instanceof ArrayBuffer ? new Uint8Array(d) : new Uint8Array(d.buffer, d.byteOffset, d.byteLength)).join(',') : '';
+      if (firstDesc === null) firstDesc = desc; else if (desc !== firstDesc) log(`Segment ${k + 1}: encoder settings differ from segment 1`, 'w');
+      const vSink = new EncodedPacketSink(v), aSink = aCfg ? new EncodedPacketSink(a) : null;
+      const fv = await vSink.getFirstPacket(), fa = aSink ? await aSink.getFirstPacket() : null;
+      if (!fv) { log(`Segment ${k + 1}: empty, skipped`, 'w'); continue; }
+      const base = Math.min(fv.timestamp, fa ? fa.timestamp : Infinity);
+      let prevRawV = null, prevRawA = null;
+      const vIt = vSink.packets()[Symbol.asyncIterator](), aIt = aSink ? aSink.packets()[Symbol.asyncIterator]() : null;
+      let vp = (await vIt.next()).value, ap = aIt ? (await aIt.next()).value : null, end = offset;
+      while (vp || ap) {                              // interleave both tracks by time
+        if (vp && (!ap || vp.timestamp <= ap.timestamp)) {
+          // Timeline rebuilt from the gaps between packets: a broken timestamp (backwards, or
+          // absurdly far ahead) only costs one frame instead of breaking the whole video.
+          let ts;
+          if (prevRawV === null) ts = Math.max(lastV + 0.001, vp.timestamp - base + offset);
+          else { let dt = vp.timestamp - prevRawV; if (!(dt > 0 && dt <= 2)) { dt = 1 / 30; fixes++; } ts = lastV + dt; }
+          prevRawV = vp.timestamp; lastV = ts;
+          await vs.add(vp.clone({ timestamp: ts }), firstV ? { decoderConfig: vCfg } : undefined);
+          firstV = false; end = Math.max(end, ts + vp.duration);
+          vp = (await vIt.next()).value;
+        } else {
+          let ts;
+          if (prevRawA === null) ts = Math.max(lastA + 0.001, ap.timestamp - base + offset);
+          else { let dt = ap.timestamp - prevRawA; if (!(dt > 0 && dt <= 2)) { dt = ap.duration || 0.021; fixes++; } ts = lastA + dt; }
+          prevRawA = ap.timestamp; lastA = ts;
+          await as.add(ap.clone({ timestamp: ts }), firstA ? { decoderConfig: aCfg } : undefined);
+          firstA = false; end = Math.max(end, ts + ap.duration);
+          ap = (await aIt.next()).value;
+        }
+      }
+      log(`Segment ${k + 1} joined: ${(end - offset).toFixed(1)} s`);
+      offset = end + 0.001; joined++;
+      if (onProgress) onProgress((n + 1) / segs.length);
+    }
+    await output.finalize();
+    await writer.flush();
+    if (fixes) log(`${fixes} timestamp(s) adjusted while joining`, 'w');
+    log(`Joined ${joined} segment(s): ${mbs(writer.end)} in ${writer.idx} parts, ${writer.patches.length} header patch(es)`);
+    const type = mp4 ? 'video/mp4' : 'video/webm';
+    await setMeta('export', { patches: writer.patches, size: writer.end, type });
+    await markConverted();
+    return assembleOutput(writer.patches, type, fileProgress);
+  }
+
+  function fileProgress(p) {
+    $('progress').style.display = ''; $('progress').value = p;
+    $('resultText').textContent = `Saving the video file… ${Math.round(p * 100)}%`;
+  }
+  async function finalizeFromStorage(durationMs) {
+    showResult('Preparing video…');
+    $('progress').style.display = ''; $('progress').value = 0;
+    $('save').disabled = true; $('saveFile').disabled = true; $('saveRaw').style.display = 'none';
+    const session = await getMeta('session').catch(() => null);
+    const mime = (session && session.mime) || 'video/mp4';
+    let records;
+    try { records = (await getAll('chunks')).sort((a, b) => a.i - b.i); }
+    catch (e) { log('Could not read the saved recording: ' + errMsg(e), 'e'); showResult('⚠︎ Could not read the saved recording: ' + errMsg(e)); return; }
+    if (!records.length) { showResult('⚠︎ Nothing was recorded.'); return; }
+    const missing = records.length && records[records.length - 1].i + 1 - records.length;
+    if (missing) log(`${missing} chunk(s) missing in storage`, 'w');
+    const segIds = [...new Set(records.map(r => r.seg || 0))].sort((x, y) => x - y);
+    const segBlobs = segIds.map(id => new Blob(records.filter(r => (r.seg || 0) === id).map(r => asBlob(r.blob)), { type: mime.split(';')[0] }));
+    rawBlob = segBlobs[0];
+    log(`Raw recording: ${mbs(segBlobs.reduce((n, b) => n + b.size, 0))} from ${records.length} chunks in ${segBlobs.length} segment(s) (${blobMode} mode)`);
+
+    const t = performance.now();
+    try {
+      const progress = p => {
+        $('progress').value = p;
+        $('resultText').textContent = `Preparing video… ${Math.round(p * 100)}%`;
+      };
+      const mp4 = segBlobs.length > 1 ? await joinSegments(segBlobs, progress) : await toStandardMp4(rawBlob, p => {
+        $('progress').value = p;
+        $('resultText').textContent = `Preparing video… ${Math.round(p * 100)}%`;
+      });
+      const secs = (performance.now() - t) / 1000;
+      if (mp4.size < 20000) throw new Error('the saved data contains no usable video yet');
+      log(`Export ready in ${secs.toFixed(1)} s`);
+      await setMeta('session', Object.assign({}, session || {}, { state: 'exported', exportSeconds: +secs.toFixed(1) }));
+      await clearStore('chunks').catch(() => {});    // free space: the converted file is kept
+      rawBlob = null;
+      setResultFile(mp4, durationMs, `standard MP4 · ready in ${secs.toFixed(1)} s`);
+      if (recTrouble && maxSide > 1280) { $('qualityWarn').hidden = false; log(`1080p trouble during this recording (${recTrouble} event(s)): 720p suggested`, 'w'); }
+    } catch (e) {
+      log('Conversion failed: ' + (e && e.stack || errMsg(e)), 'e');
+      setResultFile(rawBlob, durationMs, '⚠︎ not converted: ' + errMsg(e), true);
+    }
+  }
+
+  // ---------------------------------------------------------------- result / sharing
+  function fileName(type) {
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    const ext = type.includes('mp4') ? 'mp4' : 'webm';
+    return `seeing-roundnet-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.${ext}`;
+  }
+  function showResult(text) {
+    $('resultText').textContent = text;
+    $('result').style.display = 'block'; $('settings').style.display = 'none'; $('bmCard').style.display = 'none';
+    openSheet();
+  }
+  function hideResult() {
+    $('result').style.display = 'none';
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    resultUrl = null; resultFile = null;
+    $('preview').removeAttribute('src'); $('preview').load();
+  }
+  function setResultFile(blob, durationMs, note, isRaw) {
+    $('exportBtn').disabled = false;
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    resultUrl = URL.createObjectURL(blob);
+    const type = (blob.type || 'video/mp4').split(';')[0];
+    resultFile = new File([blob], fileName(type), { type });
+    $('preview').src = resultUrl;
+    $('progress').style.display = 'none';
+    $('resultText').textContent = `Recording ready · ${durationMs ? fmtRec(durationMs) + ' · ' : ''}${mbs(blob.size)} · ${note}`
+      + (partsOnly && !isRaw ? '. ⚠︎ It could not be prepared as one file, so sharing may fail: try Save to Files, and send a report (Copy report in Settings).' : '');
+    $('resultText').className = isRaw || partsOnly ? 'warn' : '';
+    $('save').disabled = false; $('saveFile').disabled = false;
+    $('saveRaw').style.display = (DEBUG && rawBlob && !isRaw) ? '' : 'none';
+    $('result').style.display = 'block'; $('settings').style.display = 'none'; $('bmCard').style.display = 'none';
+    openSheet();
+    setInfo(`last file ${mbs(blob.size)}`);
+  }
+  function download(file, url) {
+    const a = document.createElement('a');
+    a.href = url; a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  async function shareFile(file, url) {
+    log(`Share requested: ${file.name} · ${mbs(file.size)}`);
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      const t = performance.now();
+      try { await navigator.share({ files: [file] }); log('Shared ' + file.name); return true; }
+      catch (e) {
+        log(`Share ended: ${e.name} · ${errMsg(e)} after ${((performance.now() - t) / 1000).toFixed(1)} s`, e.name === 'AbortError' ? 'w' : 'e');
+        if (e.name === 'AbortError') return false;
+      }
+    } else {
+      log(`Share menu not available for this file (share: ${!!navigator.share}, canShare: ${!!navigator.canShare}, ${mbs(file.size)})`, 'w');
+      alert('This browser cannot open the share menu for a video, so it was saved to your downloads instead.\n\nTo share it directly (WhatsApp, Photos…), open the app in Safari on iPhone or Chrome on Android.');
+    }
+    log('Falling back to download');
+    download(file, url);
+    return true;
+  }
+  $('save').onclick = () => resultFile && shareFile(resultFile, resultUrl);
+  $('exportBtn').onclick = () => {
+    if (resultFile || /Saving the video file|Preparing video/.test($('resultText').textContent)) { $('settings').style.display = 'none'; $('bmCard').style.display = 'none'; $('result').style.display = 'block'; openSheet(); }
+    else if (lastStored) lastStored();
+  };
+  $('saveFile').onclick = () => {
+    if (!resultFile) return;
+    log(`Save to Files requested: ${resultFile.name} · ${mbs(resultFile.size)}`);
+    schedulePersistLog(true);
+    download(resultFile, resultUrl);
+  };
+  $('saveRaw').onclick = () => {
+    if (!rawBlob) return;
+    const type = (rawBlob.type || 'video/mp4').split(';')[0];
+    const f = new File([rawBlob], 'raw-' + fileName(type), { type });
+    shareFile(f, URL.createObjectURL(rawBlob));
+  };
+  $('discard').onclick = async () => {
+    if (!confirm('Delete this recording from the phone?')) return;
+    hideResult();
+    rawBlob = null; lastStored = null; $('exportBtn').disabled = true; closeSheet();
+    await Promise.all(['chunks', 'out', 'meta'].map(clearStore).concat(removeOpfsFile())).catch(() => {});
+    log('Recording deleted');
+  };
+
+  // ---------------------------------------------------------------- recovery at startup
+  function hideBanner() { $('banner').style.display = 'none'; }
+  async function checkRecovery() {
+    let session;
+    try { session = await getMeta('session'); } catch (e) { log('Storage unavailable: ' + errMsg(e), 'e'); return; }
+    if (!session) return;
+    if (session.state === 'exported') {
+      const exp = await getMeta('export').catch(() => null);
+      const parts = await getAll('out').catch(() => []);
+      let hasFile = false;
+      if (exp && exp.opfs) { try { await readOpfsFile(exp); hasFile = true; } catch (e) {} }
+      if (!parts.length && !hasFile) return;
+      // The last exported video is still on the phone: offer it on the home screen.
+      lastStored = makeLastStored(session);
+      $('exportBtn').disabled = false;
+      $('lastBtn').hidden = !$('app').hidden;
+      log(`Last exported video available (${fmtRec(session.durationMs || 0)})`);
+    } else {
+      const chunks = await getAll('chunks').catch(() => []);
+      if (!chunks.length) return;
+      $('bannerText').textContent = `An unsaved recording was found (about ${fmtRec(session.durationMs || 0)}). It can be recovered.`;
+      $('recover').textContent = 'Recover it';
+      $('banner').style.display = 'block'; $('settings').style.display = 'none'; $('bmCard').style.display = 'none'; openSheet();
+      $('recover').onclick = () => { hideBanner(); log('Recovering previous recording'); finalizeFromStorage(); };
+      log(`Found an unfinished recording: ${chunks.length} chunks`, 'w');
+    }
+    $('dismiss').onclick = async () => {
+      if (!confirm('Delete the saved recording?')) return;
+      hideBanner();
+      await Promise.all(['chunks', 'out', 'meta'].map(clearStore).concat(removeOpfsFile())).catch(() => {});
+    };
+  }
+
+  // ---------------------------------------------------------------- diagnostics
+  async function buildReport() {
+    const st = await storageInfo();
+    const session = await getMeta('session').catch(() => null);
+    const support = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm'].map(t => {
+      let ok = false; try { ok = window.MediaRecorder && MediaRecorder.isTypeSupported(t); } catch (e) {}
+      return `  ${t}: ${ok}`;
+    }).join('\n');
+    const report = [
+      `Seeing Roundnet diagnostics · ${VERSION} · ${new Date().toISOString()}`,
+      `URL: ${location.href}`,
+      `User agent: ${navigator.userAgent}`,
+      `Screen: ${screen.width}×${screen.height} @${devicePixelRatio}x · standalone: ${!!(navigator.standalone || matchMedia('(display-mode: standalone)').matches)} · tools: ${prefs.toolPos || 'tr'}`,
+      `Compat mode: ${COMPAT} · render fps: ${RENDER_FPS} · max side: ${maxSide} · bitrate: ${videoBps() / 1e6} Mbps`,
+      `APIs: MediaRecorder=${!!window.MediaRecorder} captureStream=${!!view.captureStream} wakeLock=${'wakeLock' in navigator} VideoEncoder=${!!window.VideoEncoder} AudioEncoder=${!!window.AudioEncoder} rVFC=${'requestVideoFrameCallback' in HTMLVideoElement.prototype}`,
+      `Recorder formats:\n${support}`,
+      `Storage: ${st.text} · storage mode: ${blobMode}`,
+      `Video: ${video.videoWidth}×${video.videoHeight} · ${isFinite(video.duration) ? video.duration.toFixed(1) + ' s' : 'none'} · ≈${fps} fps · drawings: ${strokes.length}`,
+      `Last session: ${JSON.stringify(session)}`,
+      `Actions recorded: ${actions.length}`,
+      '',
+      '--- Log (this session) ---',
+      ...logLines,
+      '',
+      '--- Log (previous session, e.g. before a crash) ---',
+      ...(prevLog.length ? prevLog : ['(none)']),
+      '',
+      '--- Log (last recording) ---',
+      ...(((await getMeta('reclog').catch(() => null)) || {}).lines || ['(none)']),
+      '',
+      '--- Action log (JSON) ---',
+      JSON.stringify(actions)
+    ].join('\n');
+    return report;
+  }
+  $('diag').onclick = async () => {
+    const report = await buildReport();
+    const file = new File([report], `seeing-roundnet-diagnostics-${Date.now()}.txt`, { type: 'text/plain' });
+    shareFile(file, URL.createObjectURL(file));
+  };
+  // Some iPhones send the report file empty: copying it as text always works (paste it in a message or an email).
+  $('diagCopy').onclick = async () => {
+    try {
+      if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'text/plain': buildReport().then(r => new Blob([r], { type: 'text/plain' })) })]);
+      } else await navigator.clipboard.writeText(await buildReport());
+      log('Report copied');
+      hint('Report copied: paste it in WhatsApp or an email.', 3500);
+    } catch (e) { log('Copy failed: ' + errMsg(e), 'w'); hint('Could not copy the report: use Send a report instead.', 3500); }
+  };
+
+  // ---------------------------------------------------------------- offline mode
+  // Saves the app's own files on the phone so it also opens without a connection.
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register('sw.js').then(r => {
+      log('Offline mode ready' + (navigator.serviceWorker.controller ? '' : ' (active from the next opening)'));
+      r.addEventListener('updatefound', () => log('Offline copy being updated'));
+    }).catch(e => log('Offline mode not available: ' + errMsg(e), 'w'));
+  }
+  addEventListener('offline', () => log('No connection (the app keeps working)'));
+  addEventListener('online', () => log('Connection back'));
+
+  // ---------------------------------------------------------------- new version check
+  // Every minute (and when coming back to the app), look at the version online. If it changed,
+  // offer to reload — never during a recording. A saved recording or video survives the reload.
+  let newVersion = null;
+  async function checkForUpdate() {
+    if (newVersion || !navigator.onLine) return;
+    try {
+      const r = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const m = (await r.text()).match(/const VERSION = '([^']+)'/);
+      if (m && m[1] !== VERSION) { newVersion = m[1]; log(`New version online: ${newVersion} (running ${VERSION})`); showUpdate(); }
+    } catch (e) { /* offline or blocked: try again later */ }
+  }
+  function showUpdate() {
+    if (!newVersion) return;
+    if (recState !== 'idle') { setTimeout(showUpdate, 5000); return; }   // wait until the recording is finished
+    $('updateText').textContent = `${newVersion} available`;
+    $('updateBar').style.display = 'flex';
+  }
+  $('updateReload').onclick = () => {
+    if (recState !== 'idle') return;
+    schedulePersistLog(true);
+    setTimeout(() => location.reload(), 150);
+  };
+  setInterval(checkForUpdate, 60000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+  setTimeout(checkForUpdate, 5000);
+
+  // ---------------------------------------------------------------- start
+  log(`${VERSION} · ${navigator.userAgent}`);
+  log(`Recorder format: ${pickType() || 'none'} · wakeLock: ${'wakeLock' in navigator} · VideoEncoder: ${!!window.VideoEncoder} · AudioEncoder: ${!!window.AudioEncoder}`);
+  setInfo();
+  enableEditing(false);
+  (async () => {
+    try {
+      const old = await getMeta('log');
+      if (old && old.lines) { prevLog = [`(saved ${old.at})`, ...old.lines]; await setMeta('prevlog', { lines: prevLog }); }
+      else { const p2 = await getMeta('prevlog'); if (p2 && p2.lines) prevLog = p2.lines; }
+      if (prevLog.length) log(`Previous session log available (${prevLog.length} lines)`);
+    } catch (e) {}
+    schedulePersistLog(true);
+    checkRecovery();
+  })();
+})();
+</script>
+</body>
+</html>
