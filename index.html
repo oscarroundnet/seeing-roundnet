@@ -388,7 +388,7 @@
 <script>
 (() => {
   'use strict';
-  const VERSION = 'v1.0 build 27';
+  const VERSION = 'v1.0 build 28';
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const DEBUG = params.has('debug');                // log panel open from the start
@@ -1057,6 +1057,9 @@
     if (!video.src || !vDur() || recState === 'finishing') return;
     e.preventDefault();
     try { strip.setPointerCapture(e.pointerId); } catch (err) {}
+    // A first finger always starts a new gesture: forget fingers whose release iOS never reported
+    // (otherwise one finger counted as two and the strip only zoomed, Scott 27/11).
+    if (e.isPrimary || ![...stripPts.keys()].some(id => id !== e.pointerId)) { stripPts.clear(); stripPinch = null; }
     stripPts.set(e.pointerId, e.clientX);
     if (stripPts.size === 2) {   // second finger: pinch to zoom, the video stays where it is
       const [a, b] = [...stripPts.values()];
@@ -1107,6 +1110,7 @@
   }
   strip.addEventListener('pointerup', stripEnd);
   strip.addEventListener('pointercancel', stripEnd);
+  strip.addEventListener('lostpointercapture', stripEnd);
   $('zoomIn').onclick = () => { setZoom(stripZoom * 2); saveZoom(); };
   $('zoomOut').onclick = () => { setZoom(stripZoom / 2); saveZoom(); };
   let wheelSave = null;
